@@ -1,20 +1,23 @@
 {
-  "short_name": "Advance Fertilizer",
-  "name": "Advance Fertilizer",
+  "short_name": "AF.v2",
+  "name": "AF.v2",
   "icons": [
     {
       "src": "https://img5.pic.in.th/file/secure-sv1/428709424_3685682595091856_2231537038448980245_n.th.jpg",
       "type": "image/jpeg",
-      "sizes": "192x192"
+      "sizes": "192x192",
+      "purpose": "any maskable"
     },
     {
       "src": "https://img5.pic.in.th/file/secure-sv1/428709424_3685682595091856_2231537038448980245_n.th.jpg",
       "type": "image/jpeg",
-      "sizes": "512x512"
+      "sizes": "512x512",
+      "purpose": "any maskable"
     }
   ],
   "start_url": ".",
   "display": "standalone",
-  "theme_color": "#ec4899",
-  "background_color": "#f4f5f7"
+  "theme_color": "#1f2937",
+  "background_color": "#f3f4f6",
+  "description": "Advance Fertilizer Data Collection App"
 }
