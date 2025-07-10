@@ -1,73 +1,59 @@
-// --- Service Worker for Advance Fertilizer App ---
+// Define a cache name
+const CACHE_NAME = 'advance-fertilizer-cache-v1';
 
-// IMPORTANT: Change the version number every time you update the app's core files.
-const CACHE_NAME = 'advance-fertilizer-cache-v7'; 
+// List of files to cache
 const urlsToCache = [
-  './',
+  '/',
   './index.html',
-  './manifest.json'
-  // Note: We don't cache external CDN files here, the browser handles them.
+  './app.js',
+  './manifest.json',
+  'https://cdn.tailwindcss.com',
+  'https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;700&display=swap',
+  'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css',
+  'https://cdn.jsdelivr.net/npm/chart.js',
+  'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css',
+  'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'
 ];
 
-// Install event: caches the core assets of our app.
+// Install a service worker
 self.addEventListener('install', event => {
-  console.log('Service Worker: Install event in progress.');
+  // Perform install steps
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then(cache => {
-        console.log('Service Worker: Caching core assets.');
+        console.log('Opened cache');
         return cache.addAll(urlsToCache);
-      })
-      .then(() => {
-        console.log('Service Worker: Installation complete.');
-        // Force the waiting service worker to become the active service worker.
-        return self.skipWaiting();
       })
   );
 });
 
-// Activate event: removes old caches to keep the app updated.
+// Cache and return requests
+self.addEventListener('fetch', event => {
+  event.respondWith(
+    caches.match(event.request)
+      .then(response => {
+        // Cache hit - return response
+        if (response) {
+          return response;
+        }
+        return fetch(event.request);
+      }
+    )
+  );
+});
+
+// Update a service worker
 self.addEventListener('activate', event => {
-  console.log('Service Worker: Activate event in progress.');
   const cacheWhitelist = [CACHE_NAME];
   event.waitUntil(
     caches.keys().then(cacheNames => {
       return Promise.all(
         cacheNames.map(cacheName => {
           if (cacheWhitelist.indexOf(cacheName) === -1) {
-            console.log('Service Worker: Deleting old cache:', cacheName);
             return caches.delete(cacheName);
           }
         })
       );
-    }).then(() => {
-        console.log('Service Worker: Claiming clients.');
-        // Tell the active service worker to take control of the page immediately.
-        return self.clients.claim();
     })
-  );
-});
-
-// Fetch event: Defines how to handle requests.
-self.addEventListener('fetch', event => {
-  // Strategy: Network Only for API calls.
-  // This ensures data is always fresh and avoids CORS issues with POST requests.
-  if (event.request.url.includes('script.google.com')) {
-    // Do not intercept API calls. Let the browser handle it.
-    return; 
-  }
-
-  // Strategy: Cache First, then Network for all other GET requests (local assets, CDNs).
-  // This makes the app load fast.
-  event.respondWith(
-    caches.match(event.request)
-      .then(cachedResponse => {
-        // If the resource is in the cache, return it.
-        if (cachedResponse) {
-          return cachedResponse;
-        }
-        // Otherwise, fetch it from the network.
-        return fetch(event.request);
-      })
   );
 });
