@@ -568,36 +568,23 @@ async function fetchData(force = false) {
     }
 }
 
-async function openGoogleMapsWithKML() {
-    if (!currentUser || !currentUser.username) {
-        showMessageModal('กรุณาเข้าสู่ระบบหรือข้อมูลผู้ใช้ไม่สมบูรณ์');
-        return;
-    }
+/**
+ * Opens Google Maps with a publicly accessible KML layer.
+ * This version simplifies the process by removing role-based filtering for the KML link.
+ */
+function openGoogleMapsWithKML() {
+    // 1. Construct the direct URL to the Apps Script doGet endpoint.
+    // This URL will serve the KML content for ALL data.
+    const publicKmlUrl = `${SCRIPT_URL}?map=public`;
+    
+    // 2. Encode the entire public KML URL to be safely used as a parameter.
+    const encodedKmlUrl = encodeURIComponent(publicKmlUrl);
 
-    try {
-        // This is the new, robust method.
-        // 1. Ask the backend to generate the KML file and give us the public URL.
-        const response = await apiCall({ action: 'generateAndGetMapUrl', user: currentUser }, 'กำลังสร้างลิงก์แผนที่...');
-        
-        if (response.result !== 'success' || !response.kmlUrl) {
-            throw new Error(response.message || 'ไม่สามารถสร้างลิงก์แผนที่จากเซิร์ฟเวอร์ได้');
-        }
-        
-        const driveKmlUrl = response.kmlUrl;
-
-        // 2. Encode the Drive URL to be safely used as a parameter.
-        const encodedKmlUrl = encodeURIComponent(driveKmlUrl);
-
-        // 3. Construct the final deep link for Google Maps.
-        const googleMapsDeepLink = `https://www.google.com/maps?q=${encodedKmlUrl}`;
-        
-        // 4. Open the link.
-        window.open(googleMapsDeepLink, '_blank');
-
-    } catch (error) {
-        console.error("Error opening KML map:", error);
-        showMessageModal(`เกิดข้อผิดพลาดในการเปิดแผนที่: ${error.message}`);
-    }
+    // 3. Construct the final deep link for Google Maps.
+    const googleMapsDeepLink = `https://www.google.com/maps?q=${encodedKmlUrl}`;
+    
+    // 4. Open the link in a new tab.
+    window.open(googleMapsDeepLink, '_blank');
 }
 
 
