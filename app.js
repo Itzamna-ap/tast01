@@ -569,21 +569,25 @@ async function fetchData(force = false) {
 }
 
 /**
- * Opens Google Maps with all relevant pins by generating a KML link.
- * This version passes only the username to simplify the URL and avoid rate limits.
+ * FINAL FIX: Opens Google Maps with all relevant pins by generating a KML link.
+ * This version correctly encodes the KML generator URL as a parameter for the main Google Maps URL.
  */
 function openGoogleMapsWithKML() {
     if (!currentUser || !currentUser.username) {
         showMessageModal('กรุณาเข้าสู่ระบบหรือข้อมูลผู้ใช้ไม่สมบูรณ์');
         return;
     }
-    // Construct a simpler URL, passing only the username.
-    const kmlUrl = `${SCRIPT_URL}?action=getKml&username=${encodeURIComponent(currentUser.username)}&ts=${new Date().getTime()}`;
+    // 1. Construct the base URL for our KML generator script.
+    const kmlGeneratorUrl = `${SCRIPT_URL}?action=getKml&username=${currentUser.username}&ts=${new Date().getTime()}`;
     
-    // This is the special URL format that tells Google Maps to load and display data from a KML file URL.
-    const googleMapsDeepLink = `https://www.google.com/maps?q=${kmlUrl}`;
+    // 2. IMPORTANT FIX: The entire KML generator URL must be encoded before being used as a parameter for the Google Maps URL.
+    // This is the standard and correct way to pass a URL as a parameter.
+    const encodedKmlUrl = encodeURIComponent(kmlGeneratorUrl);
+
+    // 3. Construct the final deep link for Google Maps. The 'q' parameter will now correctly point to our KML source.
+    const googleMapsDeepLink = `https://www.google.com/maps?q=${encodedKmlUrl}`;
     
-    // Open the generated link in a new tab. On mobile, this will prompt to open the Google Maps app.
+    // 4. Open the generated link in a new tab.
     window.open(googleMapsDeepLink, '_blank');
 }
 
