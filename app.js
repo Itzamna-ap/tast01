@@ -575,22 +575,23 @@ async function openGoogleMapsWithKML() {
     }
 
     try {
-        // 1. Ask the backend for a short-lived, single-use token
-        const tokenResponse = await apiCall({ action: 'getKmlToken', user: currentUser }, 'กำลังสร้างลิงก์แผนที่...');
-        if (tokenResponse.result !== 'success' || !tokenResponse.token) {
-            throw new Error(tokenResponse.message || 'ไม่สามารถรับ Token สำหรับแผนที่ได้');
+        // This is the new, robust method.
+        // 1. Ask the backend to generate the KML file and give us the public URL.
+        const response = await apiCall({ action: 'generateAndGetMapUrl', user: currentUser }, 'กำลังสร้างลิงก์แผนที่...');
+        
+        if (response.result !== 'success' || !response.kmlUrl) {
+            throw new Error(response.message || 'ไม่สามารถสร้างลิงก์แผนที่จากเซิร์ฟเวอร์ได้');
         }
         
-        // 2. Construct the KML URL with the secure token
-        const kmlUrl = `${SCRIPT_URL}?action=getKml&token=${tokenResponse.token}`;
-        
-        // 3. Encode the KML URL to be safely used as a parameter
-        const encodedKmlUrl = encodeURIComponent(kmlUrl);
+        const driveKmlUrl = response.kmlUrl;
 
-        // 4. Construct the final deep link for Google Maps
+        // 2. Encode the Drive URL to be safely used as a parameter.
+        const encodedKmlUrl = encodeURIComponent(driveKmlUrl);
+
+        // 3. Construct the final deep link for Google Maps.
         const googleMapsDeepLink = `https://www.google.com/maps?q=${encodedKmlUrl}`;
         
-        // 5. Open the link
+        // 4. Open the link.
         window.open(googleMapsDeepLink, '_blank');
 
     } catch (error) {
