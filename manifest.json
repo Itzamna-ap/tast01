@@ -1,0 +1,25 @@
+{
+  "short_name": "Advance Fertilizer",
+  "name": "Advance Fertilizer Application",
+  "description": "แอปพลิเคชันสำหรับเก็บข้อมูลร้านค้าและเกษตรกร",
+  "icons": [
+    {
+      "src": "https://img5.pic.in.th/file/secure-sv1/428709424_3685682595091856_2231537038448980245_n.th.jpg",
+      "type": "image/png",
+      "sizes": "192x192",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "https://img5.pic.in.th/file/secure-sv1/428709424_3685682595091856_2231537038448980245_n.th.jpg",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "any maskable"
+    }
+  ],
+  "start_url": "./index.html",
+  "scope": ".",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#ffffff",
+  "theme_color": "#ec4899"
+}
