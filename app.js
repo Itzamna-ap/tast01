@@ -569,19 +569,18 @@ async function fetchData(force = false) {
 }
 
 /**
- * NEW: Opens Google Maps with all relevant pins by generating a KML link.
+ * Opens Google Maps with all relevant pins by generating a KML link.
+ * This version passes only the username to simplify the URL and avoid rate limits.
  */
 function openGoogleMapsWithKML() {
-    if (!currentUser) {
-        showMessageModal('กรุณาเข้าสู่ระบบเพื่อใช้งาน');
+    if (!currentUser || !currentUser.username) {
+        showMessageModal('กรุณาเข้าสู่ระบบหรือข้อมูลผู้ใช้ไม่สมบูรณ์');
         return;
     }
-    // Construct the URL to the Apps Script endpoint for generating KML.
-    // We pass the user object for role-based filtering and a timestamp to prevent caching.
-    const kmlUrl = `${SCRIPT_URL}?action=getKml&user=${encodeURIComponent(JSON.stringify(currentUser))}&ts=${new Date().getTime()}`;
+    // Construct a simpler URL, passing only the username.
+    const kmlUrl = `${SCRIPT_URL}?action=getKml&username=${encodeURIComponent(currentUser.username)}&ts=${new Date().getTime()}`;
     
     // This is the special URL format that tells Google Maps to load and display data from a KML file URL.
-    // FIX: Removed the outer encodeURIComponent to prevent double encoding.
     const googleMapsDeepLink = `https://www.google.com/maps?q=${kmlUrl}`;
     
     // Open the generated link in a new tab. On mobile, this will prompt to open the Google Maps app.
