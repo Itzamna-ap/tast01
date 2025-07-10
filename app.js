@@ -568,27 +568,35 @@ async function fetchData(force = false) {
     }
 }
 
-/**
- * FINAL FIX: Opens Google Maps with all relevant pins by generating a KML link.
- * This version correctly encodes the KML generator URL as a parameter for the main Google Maps URL.
- */
-function openGoogleMapsWithKML() {
+async function openGoogleMapsWithKML() {
     if (!currentUser || !currentUser.username) {
         showMessageModal('กรุณาเข้าสู่ระบบหรือข้อมูลผู้ใช้ไม่สมบูรณ์');
         return;
     }
-    // 1. Construct the base URL for our KML generator script.
-    const kmlGeneratorUrl = `${SCRIPT_URL}?action=getKml&username=${currentUser.username}&ts=${new Date().getTime()}`;
-    
-    // 2. IMPORTANT FIX: The entire KML generator URL must be encoded before being used as a parameter for the Google Maps URL.
-    // This is the standard and correct way to pass a URL as a parameter.
-    const encodedKmlUrl = encodeURIComponent(kmlGeneratorUrl);
 
-    // 3. Construct the final deep link for Google Maps. The 'q' parameter will now correctly point to our KML source.
-    const googleMapsDeepLink = `https://www.google.com/maps?q=${encodedKmlUrl}`;
-    
-    // 4. Open the generated link in a new tab.
-    window.open(googleMapsDeepLink, '_blank');
+    try {
+        // 1. Ask the backend for a short-lived, single-use token
+        const tokenResponse = await apiCall({ action: 'getKmlToken', user: currentUser }, 'กำลังสร้างลิงก์แผนที่...');
+        if (tokenResponse.result !== 'success' || !tokenResponse.token) {
+            throw new Error(tokenResponse.message || 'ไม่สามารถรับ Token สำหรับแผนที่ได้');
+        }
+        
+        // 2. Construct the KML URL with the secure token
+        const kmlUrl = `${SCRIPT_URL}?action=getKml&token=${tokenResponse.token}`;
+        
+        // 3. Encode the KML URL to be safely used as a parameter
+        const encodedKmlUrl = encodeURIComponent(kmlUrl);
+
+        // 4. Construct the final deep link for Google Maps
+        const googleMapsDeepLink = `https://www.google.com/maps?q=${encodedKmlUrl}`;
+        
+        // 5. Open the link
+        window.open(googleMapsDeepLink, '_blank');
+
+    } catch (error) {
+        console.error("Error opening KML map:", error);
+        showMessageModal(`เกิดข้อผิดพลาดในการเปิดแผนที่: ${error.message}`);
+    }
 }
 
 
