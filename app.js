@@ -1,3 +1,4 @@
+// --- Global State and Element Selectors ---
 let currentUser = null, allData = [], map = null, doughnutChartInstance = null;
 const loginView = document.getElementById('login-view');
 const mainAppView = document.getElementById('main-app-view');
@@ -105,7 +106,6 @@ function renderDashboard() {
     const farmerCount = allData.filter(d => d.formType === 'เกษตรกร').length;
     const trialCount = allData.filter(d => d.formType === 'แปลงทดลอง').length;
     
-    // --- ส่วนที่แก้ไข: เปลี่ยนเป็น grid 3 คอลัมน์ และเพิ่มการ์ด "แปลงทดลอง" ---
     page.innerHTML = `
         <div class="grid grid-cols-3 gap-4 mb-6">
             <div class="bg-white p-4 rounded-lg shadow-sm text-center">
@@ -125,7 +125,6 @@ function renderDashboard() {
             <h3 class="font-bold mb-2 text-center">สัดส่วนข้อมูล</h3>
             <div class="max-w-xs mx-auto"><canvas id="doughnutChart"></canvas></div>
         </div>`;
-    // --- สิ้นสุดส่วนที่แก้ไข ---
     
     if (doughnutChartInstance) doughnutChartInstance.destroy();
     const doughnutCtx = document.getElementById('doughnutChart').getContext('2d');
@@ -465,7 +464,6 @@ function getGeoLocation(inputElId) {
     buttonEl.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
     buttonEl.disabled = true;
     
-    // --- ส่วนที่แก้ไข: ใช้ Loading Overlay หลัก ---
     loadingText.textContent = 'LOADING.....';
     loadingOverlay.classList.remove('hidden');
 
@@ -524,7 +522,7 @@ async function handleFormSubmit(e) {
     });
     
     if(fileReadPromises.length > 0) {
-        await apiCall(null, "LOADING....."); // แสดง Loader ขณะเตรียมรูป
+        await apiCall(null, "LOADING.....");
     }
     imagesToUpload = await Promise.all(fileReadPromises);
 
@@ -562,12 +560,10 @@ async function fetchData(force = false) {
         return;
     }
     
-    // --- ส่วนที่แก้ไข: ใช้ Loading Overlay หลัก ---
     loadingText.textContent = 'LOADING.....';
     loadingOverlay.classList.remove('hidden');
     
     try {
-        // เรียก apiCall โดยไม่ส่ง message เพื่อไม่ให้ loader ซ้อนกัน
         const response = await apiCall({ action: 'getData', user: currentUser }, null);
         if(response.result === 'success' && Array.isArray(response.data)) {
             allData = response.data;
@@ -591,24 +587,50 @@ async function fetchData(force = false) {
 
 function initMap() {
     const page = document.getElementById('map-page');
-    // --- ส่วนที่แก้ไข: นำปุ่มเปิด My Maps ออก ---
     page.innerHTML = `
         <div id="map" class="h-full w-full rounded-lg shadow-md min-h-[calc(100vh-230px)]"></div>
     `;
+
+    if (map) { 
+        map.remove(); 
+        map = null; 
+    }
+
+    map = L.map('map').setView([13.7563, 100.5018], 6);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+    }).addTo(map);
+
+    // --- ส่วนที่แก้ไข: บังคับให้แผนที่วาดตัวเองใหม่ ---
+    // ใช้ setTimeout เพื่อให้แน่ใจว่า DOM ได้อัปเดตขนาดของ container แล้ว
+    setTimeout(() => {
+        if (map) {
+            map.invalidateSize();
+        }
+    }, 10);
     // --- สิ้นสุดส่วนที่แก้ไข ---
 
-    if (map) { map.remove(); map = null; }
-    map = L.map('map').setView([13.7563, 100.5018], 6);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
     if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(pos => {
             const coords = [pos.coords.latitude, pos.coords.longitude];
             map.setView(coords, 13);
-            L.marker(coords, { icon: L.icon({ iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png', shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png', iconSize: [25, 41], iconAnchor: [12, 41] }), isCurrentUser: true }).addTo(map).bindPopup('<b>ตำแหน่งของคุณ</b>').openPopup();
+            L.marker(coords, { 
+                icon: L.icon({ 
+                    iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png', 
+                    shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png', 
+                    iconSize: [25, 41], 
+                    iconAnchor: [12, 41] 
+                }), 
+                isCurrentUser: true 
+            }).addTo(map).bindPopup('<b>ตำแหน่งของคุณ</b>').openPopup();
         });
     }
-    if (allData.length > 0) plotDataOnMap();
+
+    if (allData.length > 0) {
+        plotDataOnMap();
+    }
 }
+
 
 function plotDataOnMap() {
     if (!map) return;
