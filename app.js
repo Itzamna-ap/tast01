@@ -192,13 +192,10 @@ function renderDetailPage(data) {
     for (const [key, value] of Object.entries(data)) {
         if (value && !['formType', 'rowId', 'sheetRow', 'images'].some(k => key.startsWith(k)) && !key.startsWith('creator')) {
             let displayValue;
-            // MODIFIED: Check for both 'GPS' and 'GPSแปลง'
             if ((key === 'GPS' || key === 'GPSแปลง') && String(value).includes(',')) {
                 const [lat, lon] = String(value).split(',').map(s => s.trim());
                 if (!isNaN(parseFloat(lat)) && !isNaN(parseFloat(lon))) {
-                    // ...
-                    displayValue = `<a href="https://www.google.com/maps/dir/?api=1&destination=${lat},${lon}" target="_blank" ...>${value}</a>`;
-                    // ...
+                    displayValue = `<a href="https://www.google.com/maps?q=${lat},${lon}" target="_blank" rel="noopener noreferrer" class="text-blue-500 hover:underline font-bold">${value}</a>`;
                 } else {
                     displayValue = value;
                 }
@@ -570,47 +567,34 @@ async function fetchData(force = false) {
     }
 }
 
-/**
- * Opens Google Maps with a publicly accessible KML layer.
- * This version simplifies the process by removing role-based filtering for the KML link.
- */
-function openGoogleMapsWithKML() {
-    // 1. นี่คือ URL ไปยัง Apps Script ของคุณที่จะสร้าง KML
-    const publicKmlUrl = `${SCRIPT_URL}?map=public`;
-    
-    // 2. Encode URL ของ KML เพื่อให้ปลอดภัยสำหรับใส่ในพารามิเตอร์
-    const encodedKmlUrl = encodeURIComponent(publicKmlUrl);
-
-    // 3. นี่คือส่วนที่สำคัญที่สุด: เราสร้าง URL ของ Google Maps
-    //    โดยใช้พารามิเตอร์ `?q=` ซึ่งเป็นคำสั่งให้ "แสดงข้อมูลจาก URL นี้"
-    //    สังเกตว่าจะต้องไม่มี /search/ อยู่ในลิงก์นี้เด็ดขาด
-    const googleMapsDeepLink = `https://www.google.com/maps?q=${encodedKmlUrl}`;
-    
-    // --- ส่วนสำหรับดีบัก ---
-    // บรรทัดล่างนี้จะแสดง URL ที่สร้างขึ้นมาใน Console (กด F12 เพื่อดู)
-    console.log("Generated Google Maps URL:", googleMapsDeepLink);
-    // บรรทัดล่างนี้จะทำให้มีหน้าต่างเด้งขึ้นมาโชว์ URL ให้เราเห็นก่อนจะเปิดจริง
-    alert("URL ที่กำลังจะเปิดคือ: " + googleMapsDeepLink); 
-    // --- สิ้นสุดส่วนดีบัก ---
-
-    // 4. เปิดลิงก์ในแท็บใหม่
-    window.open(googleMapsDeepLink, '_blank');
+// --- ฟังก์ชันใหม่สำหรับเปิด Google My Maps ---
+function openMyMap() {
+  // !! วางลิงก์สำหรับ "แชร์" My Maps ของคุณลงใน '' ข้างล่างนี้ !!
+  // ต้องเป็นลิงก์ที่ตั้งค่าเป็น "ทุกคนที่มีลิงก์ดูได้"
+  const myMapUrl = 'https://www.google.com/maps/d/edit?mid=1NA5lYz_vAH721pAx-O_TfeEqtE7wipk&usp=sharing'; 
+  
+  if (!myMapUrl || myMapUrl.includes('YOUR_LINK_HERE')) {
+      showMessageModal('กรุณาใส่ลิงก์ Google My Map ในไฟล์ app.js ฟังก์ชัน openMyMap()');
+      return;
+  }
+  window.open(myMapUrl, '_blank');
 }
-
 
 
 function initMap() {
     const page = document.getElementById('map-page');
-    // Add the new button to open all pins in Google Maps
+    // --- ส่วนที่แก้ไข: เปลี่ยนปุ่มให้เรียกใช้ openMyMap() ---
     page.innerHTML = `
         <div class="mb-4">
-            <button onclick="openGoogleMapsWithKML()" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-lg flex items-center justify-center space-x-3 shadow-lg transition-transform transform active:scale-95">
+            <button onclick="openMyMap()" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-lg flex items-center justify-center space-x-3 shadow-lg transition-transform transform active:scale-95">
                 <i class="fas fa-map-marked-alt"></i>
-                <span>เปิดหมุดทั้งหมดใน Google Maps</span>
+                <span>เปิดแผนที่รวม (My Maps)</span>
             </button>
         </div>
         <div id="map" class="h-full w-full rounded-lg shadow-md min-h-[calc(100vh-230px)]"></div>
     `;
+    // --- สิ้นสุดส่วนที่แก้ไข ---
+
     if (map) { map.remove(); map = null; }
     map = L.map('map').setView([13.7563, 100.5018], 6);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
@@ -628,7 +612,6 @@ function plotDataOnMap() {
     if (!map) return;
     map.eachLayer(layer => { if (layer instanceof L.Marker && !layer.options.isCurrentUser) map.removeLayer(layer); });
     allData.forEach(item => {
-        // MODIFIED: Check for both 'GPS' and 'GPSแปลง'
         const gps = item['GPS'] || item['GPSแปลง'];
         if (gps && String(gps).includes(',')) {
             const [lat, lon] = String(gps).split(',').map(s => parseFloat(s.trim()));
