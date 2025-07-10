@@ -1,4 +1,3 @@
-// --- Global State and Element Selectors ---
 let currentUser = null, allData = [], map = null, doughnutChartInstance = null;
 const loginView = document.getElementById('login-view');
 const mainAppView = document.getElementById('main-app-view');
@@ -13,7 +12,7 @@ const loadingText = document.getElementById('loading-text');
 const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyWYuttyt5bFw3h7jzUhEaWBpowkLikqILd5kaL0V6b_jveMP1Tdpd1gPGqJmqexcLS1g/exec';
 
 // --- Core API and Authentication Functions ---
-async function apiCall(payload, loadingMessage = null) {
+async function apiCall(payload, loadingMessage = "LOADING.....") {
     if (loadingMessage) {
         loadingText.textContent = loadingMessage;
         loadingOverlay.classList.remove('hidden');
@@ -37,7 +36,7 @@ async function handleLogin(e) {
     submitButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
     submitButton.disabled = true;
     try {
-        const data = await apiCall({ action: 'login', username, password }, "กำลังเข้าสู่ระบบ...");
+        const data = await apiCall({ action: 'login', username, password }, "LOADING.....");
         if (data.result === 'success' && data.user) {
             currentUser = data.user;
             localStorage.setItem('currentUser', JSON.stringify(currentUser));
@@ -105,12 +104,28 @@ function renderDashboard() {
     const storeCount = allData.filter(d => d.formType === 'ร้านค้า').length;
     const farmerCount = allData.filter(d => d.formType === 'เกษตรกร').length;
     const trialCount = allData.filter(d => d.formType === 'แปลงทดลอง').length;
+    
+    // --- ส่วนที่แก้ไข: เปลี่ยนเป็น grid 3 คอลัมน์ และเพิ่มการ์ด "แปลงทดลอง" ---
     page.innerHTML = `
-        <div class="grid grid-cols-2 gap-4 mb-6">
-            <div class="bg-white p-4 rounded-lg shadow-sm text-center"><p class="text-sm text-gray-500">ร้านค้า</p><p class="text-3xl font-bold text-blue-500">${storeCount}</p></div>
-            <div class="bg-white p-4 rounded-lg shadow-sm text-center"><p class="text-sm text-gray-500">เกษตรกร</p><p class="text-3xl font-bold text-green-500">${farmerCount}</p></div>
+        <div class="grid grid-cols-3 gap-4 mb-6">
+            <div class="bg-white p-4 rounded-lg shadow-sm text-center">
+                <p class="text-sm text-gray-500">ร้านค้า</p>
+                <p class="text-3xl font-bold text-blue-500">${storeCount}</p>
+            </div>
+            <div class="bg-white p-4 rounded-lg shadow-sm text-center">
+                <p class="text-sm text-gray-500">เกษตรกร</p>
+                <p class="text-3xl font-bold text-green-500">${farmerCount}</p>
+            </div>
+            <div class="bg-white p-4 rounded-lg shadow-sm text-center">
+                <p class="text-sm text-gray-500">แปลงทดลอง</p>
+                <p class="text-3xl font-bold text-purple-500">${trialCount}</p>
+            </div>
         </div>
-        <div class="bg-white p-4 rounded-lg shadow-sm"><h3 class="font-bold mb-2 text-center">สัดส่วนข้อมูล</h3><div class="max-w-xs mx-auto"><canvas id="doughnutChart"></canvas></div></div>`;
+        <div class="bg-white p-4 rounded-lg shadow-sm">
+            <h3 class="font-bold mb-2 text-center">สัดส่วนข้อมูล</h3>
+            <div class="max-w-xs mx-auto"><canvas id="doughnutChart"></canvas></div>
+        </div>`;
+    // --- สิ้นสุดส่วนที่แก้ไข ---
     
     if (doughnutChartInstance) doughnutChartInstance.destroy();
     const doughnutCtx = document.getElementById('doughnutChart').getContext('2d');
@@ -182,13 +197,11 @@ function renderDataList(tabId) {
     });
 }
 
-// --- Detail Page Rendering with Image Gallery ---
 function renderDetailPage(data) {
     const container = document.getElementById('detail-page');
     let detailsHtml = '', linkedHtml = '', galleryHtml = '';
     const mainName = data['ชื่อร้านค้า'] || data['ชื่อเกษตรกร'] || data['เกษตรกรเจ้าของแปลง'] || 'รายละเอียด';
     
-    // Render main details
     for (const [key, value] of Object.entries(data)) {
         if (value && !['formType', 'rowId', 'sheetRow', 'images'].some(k => key.startsWith(k)) && !key.startsWith('creator')) {
             let displayValue;
@@ -206,7 +219,6 @@ function renderDetailPage(data) {
         }
     }
 
-    // Render linked data
     if (data.formType === 'ร้านค้า') {
         const linkedFarmers = allData.filter(f => f.formType === 'เกษตรกร' && f['ร้านค้าในสังกัด'] === data['ชื่อร้านค้า']);
         if(linkedFarmers.length > 0) {
@@ -227,7 +239,6 @@ function renderDetailPage(data) {
         }
     }
     
-    // Render Image Gallery by Type
     if (data.images && data.images.length > 0) {
         galleryHtml += `<h3 class="text-lg font-bold mt-6 mb-2 border-t pt-4">แกลเลอรีรูปภาพ</h3>`;
         const imagesByType = data.images.reduce((acc, img) => {
@@ -349,7 +360,6 @@ function generateForm(type, data = {}) {
         const storeOptions = stores.map(s => `<option value="${s['ชื่อร้านค้า']}" ${safeVal('ร้านค้าในสังกัด') === s['ชื่อร้านค้า'] ? 'selected' : ''}>${s['ชื่อร้านค้า']}</option>`).join('');
         title = isEdit ? 'แก้ไขข้อมูลเกษตรกร' : 'เพิ่มข้อมูลเกษตรกร';
         formType = 'เกษตรกร';
-        // --- ส่วนที่แก้ไข: เพิ่มช่อง GPS เข้าไปในฟอร์มเกษตรกร ---
         html = `<div class="p-6 overflow-y-auto"><h3 class="text-xl font-bold mb-6 border-b pb-4">ข้อมูลเกษตรกร</h3><div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div><label class="form-label">ชื่อเกษตรกร</label><input name="ชื่อเกษตรกร" class="form-input" required value="${safeVal('ชื่อเกษตรกร')}"></div>
                     <div><label class="form-label">ร้านค้าในสังกัด</label><select name="ร้านค้าในสังกัด" class="form-select"><option value="">-- ไม่ระบุ --</option>${storeOptions}</select></div>
@@ -372,7 +382,6 @@ function generateForm(type, data = {}) {
                    ${createImageUploadInput('รูปเกษตรกร', 'รูปเกษตรกร')}
                    ${createImageUploadInput('รูปผลผลิต', 'รูปผลผลิต')}
                 </div></div>`;
-        // --- สิ้นสุดส่วนที่แก้ไข ---
     } else if (type === 'trial') {
         const farmers = allData.filter(d => d.formType === 'เกษตรกร');
         const farmerOptions = farmers.map(f => `<option value="${f['ชื่อเกษตรกร']}" ${safeVal('เกษตรกรเจ้าของแปลง') === f['ชื่อเกษตรกร'] ? 'selected' : ''}>${f['ชื่อเกษตรกร']}</option>`).join('');
@@ -455,22 +464,28 @@ function getGeoLocation(inputElId) {
     const originalHtml = buttonEl.innerHTML;
     buttonEl.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
     buttonEl.disabled = true;
-    showMessageModal('กำลังระบุตำแหน่ง...');
+    
+    // --- ส่วนที่แก้ไข: ใช้ Loading Overlay หลัก ---
+    loadingText.textContent = 'LOADING.....';
+    loadingOverlay.classList.remove('hidden');
+
     if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(
             pos => {
                 inputEl.value = `${pos.coords.latitude.toFixed(6)}, ${pos.coords.longitude.toFixed(6)}`;
-                closeMessageModal();
+                loadingOverlay.classList.add('hidden');
                 buttonEl.innerHTML = originalHtml;
                 buttonEl.disabled = false;
             },
             err => {
+                loadingOverlay.classList.add('hidden');
                 showMessageModal(`เกิดข้อผิดพลาด: ${err.message}`);
                 buttonEl.innerHTML = originalHtml;
                 buttonEl.disabled = false;
             }
         );
     } else { 
+        loadingOverlay.classList.add('hidden');
         showMessageModal("เบราว์เซอร์ไม่รองรับ Geolocation");
         buttonEl.disabled = false;
     }
@@ -509,11 +524,10 @@ async function handleFormSubmit(e) {
     });
     
     if(fileReadPromises.length > 0) {
-        loadingText.textContent = "กำลังเตรียมรูปภาพ...";
-        loadingOverlay.classList.remove('hidden');
-        imagesToUpload = await Promise.all(fileReadPromises);
-        loadingOverlay.classList.add('hidden');
+        await apiCall(null, "LOADING....."); // แสดง Loader ขณะเตรียมรูป
     }
+    imagesToUpload = await Promise.all(fileReadPromises);
+
 
     const isEdit = data.rowId && data.rowId !== '';
     const payload = { 
@@ -524,7 +538,7 @@ async function handleFormSubmit(e) {
     };
 
     try {
-        const response = await apiCall(payload, "กำลังบันทึกข้อมูลและรูปภาพ...");
+        const response = await apiCall(payload, "LOADING.....");
         if (response.result === 'success') {
             showMessageModal(isEdit ? 'แก้ไขข้อมูลสำเร็จ!' : 'บันทึกข้อมูลสำเร็จ!');
             closeFormModal();
@@ -547,13 +561,14 @@ async function fetchData(force = false) {
         renderAllTabs();
         return;
     }
-    const emptyFeedEl = document.getElementById('empty-feed');
-    if(emptyFeedEl) {
-        emptyFeedEl.textContent = 'กำลังโหลดข้อมูล...';
-        emptyFeedEl.classList.remove('hidden');
-    }
+    
+    // --- ส่วนที่แก้ไข: ใช้ Loading Overlay หลัก ---
+    loadingText.textContent = 'LOADING.....';
+    loadingOverlay.classList.remove('hidden');
+    
     try {
-        const response = await apiCall({ action: 'getData', user: currentUser });
+        // เรียก apiCall โดยไม่ส่ง message เพื่อไม่ให้ loader ซ้อนกัน
+        const response = await apiCall({ action: 'getData', user: currentUser }, null);
         if(response.result === 'success' && Array.isArray(response.data)) {
             allData = response.data;
             renderDashboard();
@@ -564,36 +579,20 @@ async function fetchData(force = false) {
         } else { throw new Error(response.message || "Invalid data format from server"); }
     } catch (error) {
         console.error('Error fetching data:', error);
+        const emptyFeedEl = document.getElementById('empty-feed');
         if(emptyFeedEl) {
             emptyFeedEl.textContent = 'ไม่สามารถโหลดข้อมูลได้';
+            emptyFeedEl.classList.remove('hidden');
         }
+    } finally {
+        loadingOverlay.classList.add('hidden');
     }
 }
 
-// --- ฟังก์ชันใหม่สำหรับเปิด Google My Maps ---
-function openMyMap() {
-  // !! วางลิงก์สำหรับ "แชร์" My Maps ของคุณลงใน '' ข้างล่างนี้ !!
-  // ต้องเป็นลิงก์ที่ตั้งค่าเป็น "ทุกคนที่มีลิงก์ดูได้"
-  const myMapUrl = 'https://www.google.com/maps/d/edit?mid=1NA5lYz_vAH721pAx-O_TfeEqtE7wipk&usp=sharing'; 
-  
-  if (!myMapUrl || myMapUrl.includes('YOUR_LINK_HERE')) {
-      showMessageModal('กรุณาใส่ลิงก์ Google My Map ในไฟล์ app.js ฟังก์ชัน openMyMap()');
-      return;
-  }
-  window.open(myMapUrl, '_blank');
-}
-
-
 function initMap() {
     const page = document.getElementById('map-page');
-    // --- ส่วนที่แก้ไข: เปลี่ยนปุ่มให้เรียกใช้ openMyMap() ---
+    // --- ส่วนที่แก้ไข: นำปุ่มเปิด My Maps ออก ---
     page.innerHTML = `
-        <div class="mb-4">
-            <button onclick="openMyMap()" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-lg flex items-center justify-center space-x-3 shadow-lg transition-transform transform active:scale-95">
-                <i class="fas fa-map-marked-alt"></i>
-                <span>เปิดแผนที่รวม (My Maps)</span>
-            </button>
-        </div>
         <div id="map" class="h-full w-full rounded-lg shadow-md min-h-[calc(100vh-230px)]"></div>
     `;
     // --- สิ้นสุดส่วนที่แก้ไข ---
