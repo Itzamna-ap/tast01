@@ -196,7 +196,9 @@ function renderDetailPage(data) {
             if ((key === 'GPS' || key === 'GPSแปลง') && String(value).includes(',')) {
                 const [lat, lon] = String(value).split(',').map(s => s.trim());
                 if (!isNaN(parseFloat(lat)) && !isNaN(parseFloat(lon))) {
-                    displayValue = `<a href="https://www.google.com/maps?q=${lat},${lon}" target="_blank" rel="noopener noreferrer" class="text-blue-500 hover:underline font-bold">${value}</a>`;
+                    // ...
+                    displayValue = `<a href="https://www.google.com/maps/dir/?api=1&destination=${lat},${lon}" target="_blank" ...>${value}</a>`;
+                    // ...
                 } else {
                     displayValue = value;
                 }
@@ -573,19 +575,19 @@ async function fetchData(force = false) {
  * This version simplifies the process by removing role-based filtering for the KML link.
  */
 function openGoogleMapsWithKML() {
-    // 1. Construct the direct URL to the Apps Script doGet endpoint.
-    // This URL will serve the KML content for ALL data.
-    const publicKmlUrl = `${SCRIPT_URL}?map=public`;
-    
-    // 2. Encode the entire public KML URL to be safely used as a parameter.
-    const encodedKmlUrl = encodeURIComponent(publicKmlUrl);
+    // 1. สร้าง URL ไปยัง KML script ของเรา (ส่วนนี้ถูกต้องอยู่แล้ว)
+    const publicKmlUrl = `${SCRIPT_URL}?map=public`;
+    
+    // 2. Encode URL ของ KML เพื่อให้สามารถใช้เป็นพารามิเตอร์ได้
+    const encodedKmlUrl = encodeURIComponent(publicKmlUrl);
 
-    // 3. Construct the final deep link for Google Maps.
-    const googleMapsDeepLink = `https://www.google.com/maps?q=${encodedKmlUrl}`;
-    
-    // 4. Open the link in a new tab.
-    window.open(googleMapsDeepLink, '_blank');
+    // 3. สร้างลิงก์ Google Maps โดยใช้ 'q' parameter เพื่อโหลด KML
+    const googleMapsDeepLink = `https://www.google.com/maps?q=${encodedKmlUrl}`;
+    
+    // 4. เปิดในแท็บใหม่
+    window.open(googleMapsDeepLink, '_blank');
 }
+
 
 
 function initMap() {
@@ -625,7 +627,7 @@ function plotDataOnMap() {
                 const name = item['ชื่อร้านค้า'] || item['ชื่อเกษตรกร'] || item['เกษตรกรเจ้าของแปลง'] || 'N/A';
                 const iconColor = { 'ร้านค้า': 'blue', 'เกษตรกร': 'green', 'แปลงทดลอง': 'violet' }[item.formType] || 'grey';
                 const markerIcon = new L.Icon({ iconUrl: `https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-${iconColor}.png`, shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png', iconSize: [25, 41], iconAnchor: [12, 41] });
-                L.marker([lat, lon], {icon: markerIcon}).addTo(map).bindPopup(`<b>${name}</b><br><a href="https://www.google.com/maps?q=${lat},${lon}" target="_blank" class="text-blue-600 font-bold">นำทาง</a>`);
+                L.marker([lat, lon], {icon: markerIcon}).addTo(map).bindPopup(`<b>${name}</b><br><a href="https://www.google.com/maps/dir/?api=1&destination=${lat},${lon}" target="_blank" class="text-blue-600 font-bold">นำทาง</a>`);
             }
         }
     });
