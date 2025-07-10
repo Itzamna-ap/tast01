@@ -581,7 +581,8 @@ function openGoogleMapsWithKML() {
     const kmlUrl = `${SCRIPT_URL}?action=getKml&user=${encodeURIComponent(JSON.stringify(currentUser))}&ts=${new Date().getTime()}`;
     
     // This is the special URL format that tells Google Maps to load and display data from a KML file URL.
-    const googleMapsDeepLink = `https://www.google.com/maps?q=${encodeURIComponent(kmlUrl)}`;
+    // FIX: Removed the outer encodeURIComponent to prevent double encoding.
+    const googleMapsDeepLink = `https://www.google.com/maps?q=${kmlUrl}`;
     
     // Open the generated link in a new tab. On mobile, this will prompt to open the Google Maps app.
     window.open(googleMapsDeepLink, '_blank');
