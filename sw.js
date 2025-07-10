@@ -1,6 +1,5 @@
 // Define the cache name and files to cache
-const CACHE_NAME = 'af-v2-cache-v1';
-// Add all essential files for your app to work offline
+const CACHE_NAME = 'af-v2-cache-v2'; // Changed cache name to ensure update
 const urlsToCache = [
   '/',
   '/index.html',
@@ -46,18 +45,30 @@ self.addEventListener('activate', event => {
   );
 });
 
-// Fetch event: serve cached content when offline
+// Fetch event: Network-first strategy
 self.addEventListener('fetch', event => {
+  // We only want to intercept navigation requests, not API calls to the script
+  if (event.request.mode !== 'navigate' && new URL(event.request.url).origin !== self.location.origin) {
+    return;
+  }
+
   event.respondWith(
-    caches.match(event.request)
-      .then(response => {
-        // Cache hit - return response from cache
-        if (response) {
-          return response;
-        }
-        // Not in cache - fetch from network
-        return fetch(event.request);
-      }
-    )
+    fetch(event.request)
+      .then(networkResponse => {
+        // If the fetch is successful, clone it and cache it.
+        const responseToCache = networkResponse.clone();
+        caches.open(CACHE_NAME)
+          .then(cache => {
+            cache.put(event.request, responseToCache);
+          });
+        return networkResponse;
+      })
+      .catch(() => {
+        // If the network request fails (offline), try to serve from the cache.
+        return caches.match(event.request)
+          .then(cachedResponse => {
+            return cachedResponse;
+          });
+      })
   );
 });
