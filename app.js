@@ -575,17 +575,26 @@ async function fetchData(force = false) {
  * This version simplifies the process by removing role-based filtering for the KML link.
  */
 function openGoogleMapsWithKML() {
-    // 1. สร้าง URL ไปยัง KML script ของเรา (ส่วนนี้ถูกต้องอยู่แล้ว)
-    const publicKmlUrl = `${SCRIPT_URL}?map=public`;
-    
-    // 2. Encode URL ของ KML เพื่อให้สามารถใช้เป็นพารามิเตอร์ได้
-    const encodedKmlUrl = encodeURIComponent(publicKmlUrl);
+    // 1. นี่คือ URL ไปยัง Apps Script ของคุณที่จะสร้าง KML
+    const publicKmlUrl = `${SCRIPT_URL}?map=public`;
+    
+    // 2. Encode URL ของ KML เพื่อให้ปลอดภัยสำหรับใส่ในพารามิเตอร์
+    const encodedKmlUrl = encodeURIComponent(publicKmlUrl);
 
-    // 3. สร้างลิงก์ Google Maps โดยใช้ 'q' parameter เพื่อโหลด KML
-    const googleMapsDeepLink = `https://www.google.com/maps?q=${encodedKmlUrl}`;
-    
-    // 4. เปิดในแท็บใหม่
-    window.open(googleMapsDeepLink, '_blank');
+    // 3. นี่คือส่วนที่สำคัญที่สุด: เราสร้าง URL ของ Google Maps
+    //    โดยใช้พารามิเตอร์ `?q=` ซึ่งเป็นคำสั่งให้ "แสดงข้อมูลจาก URL นี้"
+    //    สังเกตว่าจะต้องไม่มี /search/ อยู่ในลิงก์นี้เด็ดขาด
+    const googleMapsDeepLink = `https://www.google.com/maps?q=${encodedKmlUrl}`;
+    
+    // --- ส่วนสำหรับดีบัก ---
+    // บรรทัดล่างนี้จะแสดง URL ที่สร้างขึ้นมาใน Console (กด F12 เพื่อดู)
+    console.log("Generated Google Maps URL:", googleMapsDeepLink);
+    // บรรทัดล่างนี้จะทำให้มีหน้าต่างเด้งขึ้นมาโชว์ URL ให้เราเห็นก่อนจะเปิดจริง
+    alert("URL ที่กำลังจะเปิดคือ: " + googleMapsDeepLink); 
+    // --- สิ้นสุดส่วนดีบัก ---
+
+    // 4. เปิดลิงก์ในแท็บใหม่
+    window.open(googleMapsDeepLink, '_blank');
 }
 
 
