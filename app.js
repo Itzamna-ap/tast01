@@ -568,9 +568,38 @@ async function fetchData(force = false) {
     }
 }
 
+/**
+ * NEW: Opens Google Maps with all relevant pins by generating a KML link.
+ */
+function openGoogleMapsWithKML() {
+    if (!currentUser) {
+        showMessageModal('กรุณาเข้าสู่ระบบเพื่อใช้งาน');
+        return;
+    }
+    // Construct the URL to the Apps Script endpoint for generating KML.
+    // We pass the user object for role-based filtering and a timestamp to prevent caching.
+    const kmlUrl = `${SCRIPT_URL}?action=getKml&user=${encodeURIComponent(JSON.stringify(currentUser))}&ts=${new Date().getTime()}`;
+    
+    // This is the special URL format that tells Google Maps to load and display data from a KML file URL.
+    const googleMapsDeepLink = `https://www.google.com/maps?q=${encodeURIComponent(kmlUrl)}`;
+    
+    // Open the generated link in a new tab. On mobile, this will prompt to open the Google Maps app.
+    window.open(googleMapsDeepLink, '_blank');
+}
+
+
 function initMap() {
     const page = document.getElementById('map-page');
-    page.innerHTML = `<div id="map" class="h-full w-full rounded-lg shadow-md min-h-[calc(100vh-160px)]"></div>`;
+    // Add the new button to open all pins in Google Maps
+    page.innerHTML = `
+        <div class="mb-4">
+            <button onclick="openGoogleMapsWithKML()" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-lg flex items-center justify-center space-x-3 shadow-lg transition-transform transform active:scale-95">
+                <i class="fas fa-map-marked-alt"></i>
+                <span>เปิดหมุดทั้งหมดใน Google Maps</span>
+            </button>
+        </div>
+        <div id="map" class="h-full w-full rounded-lg shadow-md min-h-[calc(100vh-230px)]"></div>
+    `;
     if (map) { map.remove(); map = null; }
     map = L.map('map').setView([13.7563, 100.5018], 6);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
