@@ -1,11 +1,12 @@
 // Define the cache name and files to cache
-const CACHE_NAME = 'af-v2-cache-v2'; // Changed cache name to ensure update
+const CACHE_NAME = 'af-v2-cache-v3'; // Changed cache name to ensure update
 const urlsToCache = [
-  '/',
-  '/index.html',
-  '/app.js',
+  './',             // Path to the root of the current folder (index.html)
+  './index.html',
+  './app.js',
+  './manifest.json' // Also cache the manifest file itself
   // Add other assets like your main CSS file if you have one
-  // e.g., '/style.css'
+  // e.g., './style.css'
 ];
 
 // Install event: open cache and add files
