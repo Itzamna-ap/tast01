@@ -636,14 +636,27 @@ function plotDataOnMap() {
     if (!map) return;
     map.eachLayer(layer => { if (layer instanceof L.Marker && !layer.options.isCurrentUser) map.removeLayer(layer); });
     allData.forEach(item => {
+        // โค้ดนี้จะปักหมุดข้อมูลทุกประเภทที่มีพิกัด GPS
         const gps = item['GPS'] || item['GPSแปลง'];
         if (gps && String(gps).includes(',')) {
             const [lat, lon] = String(gps).split(',').map(s => parseFloat(s.trim()));
             if (!isNaN(lat) && !isNaN(lon)) {
                 const name = item['ชื่อร้านค้า'] || item['ชื่อเกษตรกร'] || item['เกษตรกรเจ้าของแปลง'] || 'N/A';
+                
+                // --- ส่วนที่แก้ไข: สร้างรายละเอียดเพิ่มเติมสำหรับ Popup ---
+                let details = '';
+                if (item.formType === 'เกษตรกร' && item['ร้านค้าในสังกัด']) {
+                    details = `<br><small>สังกัด: ${item['ร้านค้าในสังกัด']}</small>`;
+                } else if (item.formType === 'แปลงทดลอง' && item['เกษตรกรเจ้าของแปลง']) {
+                    details = `<br><small>เจ้าของแปลง: ${item['เกษตรกรเจ้าของแปลง']}</small>`;
+                }
+                // --- สิ้นสุดส่วนสร้างรายละเอียด ---
+
                 const iconColor = { 'ร้านค้า': 'blue', 'เกษตรกร': 'green', 'แปลงทดลอง': 'violet' }[item.formType] || 'grey';
                 const markerIcon = new L.Icon({ iconUrl: `https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-${iconColor}.png`, shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png', iconSize: [25, 41], iconAnchor: [12, 41] });
-                L.marker([lat, lon], {icon: markerIcon}).addTo(map).bindPopup(`<b>${name}</b><br><a href="https://www.google.com/maps/dir/?api=1&destination=${lat},${lon}" target="_blank" class="text-blue-600 font-bold">นำทาง</a>`);
+                
+                // --- ส่วนที่แก้ไข: เพิ่ม details เข้าไปใน bindPopup ---
+                L.marker([lat, lon], {icon: markerIcon}).addTo(map).bindPopup(`<b>${name}</b>${details}<br><a href="https://www.google.com/maps/dir/?api=1&destination=${lat},${lon}" target="_blank" class="text-blue-600 font-bold mt-1 inline-block">นำทาง</a>`);
             }
         }
     });
