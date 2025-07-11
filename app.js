@@ -666,8 +666,25 @@ function plotDataOnMap() {
     console.log(`%cAttempting to plot ${allData.length} items on the map.`, 'color: blue; font-weight: bold;');
 
     let plottedCount = 0;
+    
+    // --- DEBUGGING: START ---
+    // ทดลองปักหมุดแบบตายตัว 1 อันที่อำเภอบางเลน เพื่อทดสอบว่าคำสั่ง Marker ทำงานได้หรือไม่
+    try {
+        const testLocation = { lon: 100.165, lat: 14.022 }; // พิกัดอำเภอบางเลน
+        const testMarker = new longdo.Marker(testLocation, {
+            title: 'หมุดทดสอบ',
+            detail: 'ถ้าเห็นหมุดนี้ แสดงว่าแผนที่ทำงานได้ปกติ'
+        });
+        map.Overlays.add(testMarker);
+        console.log('%cSuccessfully added a hardcoded test marker at Bang Len.', 'color: purple; font-weight: bold;');
+    } catch(e) {
+        console.error('%cFailed to add hardcoded test marker.', 'color: red; font-weight: bold;', e);
+    }
+    // --- DEBUGGING: END ---
+
+
     allData.forEach((item, index) => {
-        // *** ส่วนที่แก้ไข: กลับไปใช้ชื่อคอลัมน์ที่ถูกต้อง ***
+        // *** กลับไปใช้ชื่อคอลัมน์ที่ถูกต้อง ***
         const gps = item['GPS'] || item['GPSแปลง'];
         
         if (gps && typeof gps === 'string' && gps.includes(',')) {
@@ -700,7 +717,7 @@ function plotDataOnMap() {
             }
         }
     });
-    console.log(`%cFinished. Successfully created ${plottedCount} markers.`, 'color: blue; font-weight: bold;');
+    console.log(`%cFinished. Successfully created ${plottedCount} markers from data.`, 'color: blue; font-weight: bold;');
 }
 
 
