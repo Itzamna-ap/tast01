@@ -37,11 +37,11 @@ async function handleLogin(e) {
     submitButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
     submitButton.disabled = true;
     try {
-        const data = await apiCall({ action: 'login', username, password }, "LOADING.....");
+        const data = await apiCall({ action: 'login', username, password }, "กำลังเข้าสู่ระบบ...");
         if (data.result === 'success' && data.user) {
             currentUser = data.user;
             localStorage.setItem('currentUser', JSON.stringify(currentUser));
-            initializeApp();
+            await initializeApp();
         } else {
             loginError.textContent = data.message || 'Username หรือ Password ไม่ถูกต้อง';
             submitButton.innerHTML = 'เข้าสู่ระบบ';
@@ -60,12 +60,15 @@ async function initializeApp() {
     loginView.classList.add('hidden');
     mainAppView.classList.remove('hidden');
     mainAppView.classList.add('active');
-    await fetchData(true);
-    showPage('dashboard');
+    
+    showPage('dashboard'); // แสดงหน้า dashboard ก่อน
+    await fetchData(true); // แล้วจึงดึงข้อมูล ซึ่งจะอัปเดต UI เอง
 }
 
 function handleLogout() {
     localStorage.removeItem('currentUser');
+    allData = [];
+    currentUser = null;
     location.reload();
 }
 
@@ -81,11 +84,39 @@ function checkSession() {
     }
 }
 
-// --- Page Navigation and Rendering ---
+// --- NEW: Centralized Rendering Function ---
+function renderApp() {
+    console.log("renderApp() called. Refreshing UI based on current state.");
+    const activePageElement = document.querySelector('.page-content.active');
+    if (!activePageElement) {
+        console.warn("No active page found to render.");
+        return;
+    }
+    const pageName = activePageElement.id.replace('-page', '');
+
+    switch (pageName) {
+        case 'dashboard':
+            renderDashboard();
+            break;
+        case 'feed':
+            renderFeedPage();
+            break;
+        case 'map':
+            initMap();
+            break;
+        case 'detail':
+            // Detail page is handled by showPage directly, so we do nothing here.
+            break;
+        default:
+            console.log(`No render function for page: ${pageName}`);
+    }
+}
+
+// --- REVISED: Page Navigation ---
 function showPage(pageName, detailData = null) {
     document.querySelectorAll('.page-content').forEach(p => p.classList.remove('active'));
     const newPage = document.getElementById(`${pageName}-page`);
-    if(newPage) newPage.classList.add('active');
+    if (newPage) newPage.classList.add('active');
     
     document.querySelectorAll('.bottom-nav-item').forEach(item => {
         item.dataset.active = item.getAttribute('onclick').includes(`'${pageName}'`);
@@ -94,14 +125,50 @@ function showPage(pageName, detailData = null) {
     document.getElementById('header-title').textContent = { dashboard: 'ภาพรวม', feed: 'ข้อมูลลูกค้า', map: 'แผนที่', detail: 'รายละเอียด' }[pageName] || 'ภาพรวม';
     backButton.classList.toggle('hidden', pageName !== 'detail');
 
-    if (pageName === 'dashboard') renderDashboard();
-    if (pageName === 'feed') renderFeedPage();
-    if (pageName === 'detail') renderDetailPage(detailData);
-    if (pageName === 'map') initMap();
+    if (pageName === 'detail') {
+        renderDetailPage(detailData);
+    } else {
+        renderApp(); // Use the centralized renderer for all main pages
+    }
 }
+
+
+// --- REVISED: Data Fetching ---
+async function fetchData(force = false) {
+    if (!currentUser) return;
+    if (allData.length > 0 && !force) {
+        console.log("Data already exists. Skipping fetch.");
+        return;
+    }
+    
+    try {
+        loadingText.textContent = 'กำลังดึงข้อมูล...';
+        loadingOverlay.classList.remove('hidden');
+        const response = await apiCall({ action: 'getData', user: currentUser }, null);
+
+        if (response.result === 'success' && Array.isArray(response.data)) {
+            allData = response.data;
+            console.log(`Successfully fetched ${allData.length} items.`);
+        } else {
+            // Don't clear old data, just show an error.
+            throw new Error(response.message || "รูปแบบข้อมูลที่ได้รับจากเซิร์ฟเวอร์ไม่ถูกต้อง");
+        }
+    } catch (error) {
+        console.error('Error in fetchData:', error);
+        // Don't clear allData here to preserve old data if fetch fails
+        showMessageModal(`เกิดข้อผิดพลาด: ไม่สามารถโหลดข้อมูลลูกค้าได้\n\n(${error.message})`);
+    } finally {
+        loadingOverlay.classList.add('hidden');
+        renderApp(); // Always re-render the app with new (or existing) data.
+    }
+}
+
+
+// --- Dashboard, Feed, and Detail Rendering (Largely Unchanged) ---
 
 function renderDashboard() {
     const page = document.getElementById('dashboard-page');
+    if (!page) return;
     const storeCount = allData.filter(d => d.formType === 'ร้านค้า').length;
     const farmerCount = allData.filter(d => d.formType === 'เกษตรกร').length;
     const trialCount = allData.filter(d => d.formType === 'แปลงทดลอง').length;
@@ -133,6 +200,7 @@ function renderDashboard() {
 
 function renderFeedPage() {
     const page = document.getElementById('feed-page');
+    if (!page) return;
     page.innerHTML = `
         <div class="flex justify-between items-center mb-4"><h1 class="text-2xl font-bold text-gray-800">ข้อมูลลูกค้า</h1><button onclick="showAddFormSelection()" class="bg-pink-500 hover:bg-pink-600 text-white font-bold py-2 px-4 rounded-lg flex items-center space-x-2"><i class="fas fa-plus"></i><span>เพิ่ม</span></button></div>
         <div class="p-1 bg-gray-200 rounded-lg flex space-x-1 mb-4"><button onclick="showTab('stores')" class="tab-button w-1/3 py-2 rounded-md" data-active="true">ร้านค้า</button><button onclick="showTab('farmers')" class="tab-button w-1/3 py-2 rounded-md">เกษตรกร</button><button onclick="showTab('trials')" class="tab-button w-1/3 py-2 rounded-md">แปลงทดลอง</button></div>
@@ -553,53 +621,7 @@ async function handleFormSubmit(e) {
     }
 }
 
-async function fetchData(force = false) {
-    if (!currentUser) return;
-    if (allData.length > 0 && !force) {
-        renderAllTabs();
-        return;
-    }
-    
-    try {
-        loadingText.textContent = 'กำลังดึงข้อมูล...';
-        loadingOverlay.classList.remove('hidden');
-
-        const response = await apiCall({ action: 'getData', user: currentUser }, null);
-
-        if (response.result === 'success' && Array.isArray(response.data)) {
-            allData = response.data;
-            console.log(`Successfully fetched ${allData.length} items.`);
-            if (allData.length === 0) {
-                 const emptyFeedEl = document.getElementById('empty-feed');
-                 if(emptyFeedEl) {
-                    emptyFeedEl.textContent = 'ไม่พบข้อมูลลูกค้า';
-                    emptyFeedEl.classList.remove('hidden');
-                 }
-            }
-        } else {
-            allData = [];
-            throw new Error(response.message || "รูปแบบข้อมูลที่ได้รับจากเซิร์ฟเวอร์ไม่ถูกต้อง");
-        }
-    } catch (error) {
-        console.error('Error in fetchData:', error);
-        allData = [];
-        showMessageModal(`เกิดข้อผิดพลาด: ไม่สามารถโหลดข้อมูลลูกค้าได้\n\n(${error.message})`);
-        const emptyFeedEl = document.getElementById('empty-feed');
-        if(emptyFeedEl) {
-            emptyFeedEl.textContent = 'ไม่สามารถโหลดข้อมูลได้';
-            emptyFeedEl.classList.remove('hidden');
-        }
-    } finally {
-        loadingOverlay.classList.add('hidden');
-        renderDashboard();
-        const currentPage = document.querySelector('.page-content.active')?.id.replace('-page','');
-        if (currentPage === 'feed') {
-            renderFeedPage();
-        }
-    }
-}
-
-// --- Longdo Map Functions (Final Robust Version) ---
+// --- REVISED: Longdo Map Functions ---
 async function initMap() {
     if (isMapInitializing) return;
     isMapInitializing = true;
