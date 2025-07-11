@@ -1,4 +1,3 @@
-// --- Global State and Element Selectors ---
 let currentUser = null, allData = [], map = null, doughnutChartInstance = null;
 const loginView = document.getElementById('login-view');
 const mainAppView = document.getElementById('main-app-view');
@@ -585,82 +584,92 @@ async function fetchData(force = false) {
     }
 }
 
+// --- Longdo Map Functions ---
 function initMap() {
     const page = document.getElementById('map-page');
-    page.innerHTML = `
-        <div id="map" class="h-full w-full rounded-lg shadow-md min-h-[calc(100vh-230px)]"></div>
-    `;
+    page.innerHTML = `<div id="map" class="h-full w-full rounded-lg shadow-md min-h-[calc(100vh-230px)]"></div>`;
 
-    if (map) { 
-        map.remove(); 
-        map = null; 
+    if (typeof longdo === 'undefined') {
+        showMessageModal('ไม่สามารถโหลด Longdo Map ได้ กรุณาตรวจสอบการเชื่อมต่ออินเทอร์เน็ตและการตั้งค่า API Key ในไฟล์ index.html');
+        return;
     }
 
-    map = L.map('map').setView([13.7563, 100.5018], 6);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-    }).addTo(map);
-
-    // --- ส่วนที่แก้ไข: บังคับให้แผนที่วาดตัวเองใหม่ ---
-    // ใช้ setTimeout เพื่อให้แน่ใจว่า DOM ได้อัปเดตขนาดของ container แล้ว
-    setTimeout(() => {
-        if (map) {
-            map.invalidateSize();
-        }
-    }, 10);
-    // --- สิ้นสุดส่วนที่แก้ไข ---
+    map = new longdo.Map({
+        placeholder: document.getElementById('map'),
+        language: 'th',
+    });
+    
+    plotDataOnMap();
 
     if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(pos => {
-            const coords = [pos.coords.latitude, pos.coords.longitude];
-            map.setView(coords, 13);
-            L.marker(coords, { 
-                icon: L.icon({ 
-                    iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png', 
-                    shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png', 
-                    iconSize: [25, 41], 
-                    iconAnchor: [12, 41] 
-                }), 
-                isCurrentUser: true 
-            }).addTo(map).bindPopup('<b>ตำแหน่งของคุณ</b>').openPopup();
+            const userLocation = {
+                lon: pos.coords.longitude,
+                lat: pos.coords.latitude
+            };
+            map.location(userLocation, true);
+            map.zoom(15, true);
+            const userMarker = new longdo.Marker(userLocation, {
+                title: 'ตำแหน่งของคุณ',
+                icon: {
+                    url: 'https://map.longdo.com/mmmap/images/pin_mark.png',
+                    offset: { x: 12, y: 45 }
+                },
+                detail: 'นี่คือตำแหน่งปัจจุบันของคุณ'
+            });
+            map.Overlays.add(userMarker);
         });
-    }
-
-    if (allData.length > 0) {
-        plotDataOnMap();
     }
 }
 
-
 function plotDataOnMap() {
     if (!map) return;
-    map.eachLayer(layer => { if (layer instanceof L.Marker && !layer.options.isCurrentUser) map.removeLayer(layer); });
+
+    map.Overlays.clear();
+
     allData.forEach(item => {
-        // โค้ดนี้จะปักหมุดข้อมูลทุกประเภทที่มีพิกัด GPS
         const gps = item['GPS'] || item['GPSแปลง'];
         if (gps && String(gps).includes(',')) {
             const [lat, lon] = String(gps).split(',').map(s => parseFloat(s.trim()));
             if (!isNaN(lat) && !isNaN(lon)) {
                 const name = item['ชื่อร้านค้า'] || item['ชื่อเกษตรกร'] || item['เกษตรกรเจ้าของแปลง'] || 'N/A';
                 
-                // --- ส่วนที่แก้ไข: สร้างรายละเอียดเพิ่มเติมสำหรับ Popup ---
                 let details = '';
                 if (item.formType === 'เกษตรกร' && item['ร้านค้าในสังกัด']) {
-                    details = `<br><small>สังกัด: ${item['ร้านค้าในสังกัด']}</small>`;
+                    details = `<div class="text-sm text-gray-600">สังกัด: ${item['ร้านค้าในสังกัด']}</div>`;
                 } else if (item.formType === 'แปลงทดลอง' && item['เกษตรกรเจ้าของแปลง']) {
-                    details = `<br><small>เจ้าของแปลง: ${item['เกษตรกรเจ้าของแปลง']}</small>`;
+                    details = `<div class="text-sm text-gray-600">เจ้าของแปลง: ${item['เกษตรกรเจ้าของแปลง']}</div>`;
                 }
-                // --- สิ้นสุดส่วนสร้างรายละเอียด ---
+
+                const navLink = `https://map.longdo.com/?mode=d&lon=${lon}&lat=${lat}`;
+                const popupContent = `<div class="p-1" style="font-family: sans-serif; max-width: 200px;">
+                                        <b class="text-base" style="font-size: 1rem; font-weight: bold;">${name}</b>
+                                        ${details}
+                                        <a href="${navLink}" target="_blank" class="text-blue-600 font-bold mt-2 inline-block" style="color: #2563eb; font-weight: bold; margin-top: 0.5rem; display: inline-block;">นำทาง</a>
+                                      </div>`;
 
                 const iconColor = { 'ร้านค้า': 'blue', 'เกษตรกร': 'green', 'แปลงทดลอง': 'violet' }[item.formType] || 'grey';
-                const markerIcon = new L.Icon({ iconUrl: `https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-${iconColor}.png`, shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png', iconSize: [25, 41], iconAnchor: [12, 41] });
-                
-                // --- ส่วนที่แก้ไข: เพิ่ม details เข้าไปใน bindPopup ---
-                L.marker([lat, lon], {icon: markerIcon}).addTo(map).bindPopup(`<b>${name}</b>${details}<br><a href="https://www.google.com/maps/dir/?api=1&destination=${lat},${lon}" target="_blank" class="text-blue-600 font-bold mt-1 inline-block">นำทาง</a>`);
+                const iconUrl = `https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-${iconColor}.png`;
+
+                const marker = new longdo.Marker(
+                    { lon, lat },
+                    {
+                        title: name,
+                        icon: {
+                            url: iconUrl,
+                            offset: { x: 12, y: 41 }
+                        },
+                        popup: {
+                            html: popupContent
+                        }
+                    }
+                );
+                map.Overlays.add(marker);
             }
         }
     });
 }
+
 
 function showMessageModal(message) {
     const modal = document.getElementById('message-modal');
