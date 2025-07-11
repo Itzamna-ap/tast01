@@ -100,16 +100,17 @@ function showPage(pageName, detailData = null) {
     if (pageName === 'map') initMap();
 }
 
-/**
- * Renders the dashboard with store, farmer, AND trial plot counts.
- */
 function renderDashboard() {
+    // ** FIX: Ensure map object is destroyed before rendering this page **
+    if (map) {
+        map.remove();
+        map = null;
+    }
     const page = document.getElementById('dashboard-page');
     const storeCount = allData.filter(d => d.formType === 'ร้านค้า').length;
     const farmerCount = allData.filter(d => d.formType === 'เกษตรกร').length;
     const trialCount = allData.filter(d => d.formType === 'แปลงทดลอง').length;
     
-    // Updated to grid-cols-3 and added the third card for Trial Plots
     page.innerHTML = `
         <div class="grid grid-cols-3 gap-4 mb-6">
             <div class="bg-white p-4 rounded-lg shadow-sm text-center">
@@ -148,6 +149,11 @@ function renderDashboard() {
 }
 
 function renderFeedPage() {
+    // ** FIX: Ensure map object is destroyed before rendering this page **
+    if (map) {
+        map.remove();
+        map = null;
+    }
     const page = document.getElementById('feed-page');
     page.innerHTML = `
         <div class="flex justify-between items-center mb-4"><h1 class="text-2xl font-bold text-gray-800">ข้อมูลลูกค้า</h1><button onclick="showAddFormSelection()" class="bg-pink-500 hover:bg-pink-600 text-white font-bold py-2 px-4 rounded-lg flex items-center space-x-2"><i class="fas fa-plus"></i><span>เพิ่ม</span></button></div>
@@ -421,7 +427,7 @@ function generateForm(type, data = {}) {
                     <div><label class="form-label">ลักษณะพื้นที่และดิน</label><input name="ลักษณะพื้นที่และดิน" class="form-input" value="${safeVal('ลักษณะพื้นที่และดิน')}"></div>
                     <div><label class="form-label">ปุ๋ยที่เคยใช้</label><input name="ปุ๋ยที่เคยใช้" class="form-input" value="${safeVal('ปุ๋ยที่เคยใช้')}"></div>
                     <div class="md:col-span-2"><label class="form-label">วิธีใช้ปุ๋ยทดลอง</label><textarea name="วิธีใช้ปุ๋ยทดลอง" class="form-textarea">${safeVal('วิธีใช้ปุ๋ยทดลอง')}</textarea></div>
-                    <div class="md:col-span-2"><label class="form-label">ผลที่คาดหวัง</label><textarea name="ผลที่คาดหวัง" class="form-textarea">${safeVal('ผลที่คาดหวัง')}</textarea></div>
+                    <div><label class="form-label">ผลที่คาดหวัง</label><textarea name="ผลที่คาดหวัง" class="form-textarea">${safeVal('ผลที่คาดหวัง')}</textarea></div>
                     <div><label class="form-label">วันติดตามผล</label><input name="วันติดตามผล" type="date" class="form-input" value="${safeVal('วันติดตามผล')}"></div>
                     <div><label class="form-label">ผลเป็นไปตามคาดหวังหรือไม่</label><select name="ผลเป็นไปตามคาดหวังหรือไม่" class="form-select"><option ${safeVal('ผลเป็นไปตามคาดหวังหรือไม่') === 'ใช่' ? 'selected' : ''}>ใช่</option><option ${safeVal('ผลเป็นไปตามคาดหวังหรือไม่') === 'ไม่' ? 'selected' : ''}>ไม่</option><option ${safeVal('ผลเป็นไปตามคาดหวังหรือไม่') === 'ยังไม่ทราบ' ? 'selected' : ''}>ยังไม่ทราบ</option></select></div>
                     <div><label class="form-label">การเปลี่ยนแปลงของดิน</label><input name="การเปลี่ยนแปลงของดิน" class="form-input" value="${safeVal('การเปลี่ยนแปลงของดิน')}"></div>
@@ -692,7 +698,6 @@ function showMessageModal(message) {
     document.getElementById('modal-message').innerText = message;
     modal.classList.remove('hidden');
 }
-
 function closeMessageModal() { document.getElementById('message-modal').classList.add('hidden'); }
 
 // --- Initial Setup Event Listeners ---
