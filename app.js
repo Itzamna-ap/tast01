@@ -435,7 +435,7 @@ function generateForm(type, data = {}) {
                     <div><label class="form-label">ลักษณะพื้นที่และดิน</label><input name="ลักษณะพื้นที่และดิน" class="form-input" value="${safeVal('ลักษณะพื้นที่และดิน')}"></div>
                     <div><label class="form-label">ปุ๋ยที่เคยใช้</label><input name="ปุ๋ยที่เคยใช้" class="form-input" value="${safeVal('ปุ๋ยที่เคยใช้')}"></div>
                     <div class="md:col-span-2"><label class="form-label">วิธีใช้ปุ๋ยทดลอง</label><textarea name="วิธีใช้ปุ๋ยทดลอง" class="form-textarea">${safeVal('วิธีใช้ปุ๋ยทดลอง')}</textarea></div>
-                    <div><label class="form-label">ผลที่คาดหวัง</label><textarea name="ผลที่คาดหวัง" class="form-textarea">${safeVal('ผลที่คาดหวัง')}</textarea></div>
+                    <div><label class="form-label">ผลที่คาดหวัง</label><textarea name="ผลที่คาดหวัง" class="form-textarea">${safeVal('ผลที่คาดหวัง')}"></div>
                     <div><label class="form-label">วันติดตามผล</label><input name="วันติดตามผล" type="date" class="form-input" value="${safeVal('วันติดตามผล')}"></div>
                     <div><label class="form-label">ผลเป็นไปตามคาดหวังหรือไม่</label><select name="ผลเป็นไปตามคาดหวังหรือไม่" class="form-select"><option ${safeVal('ผลเป็นไปตามคาดหวังหรือไม่') === 'ใช่' ? 'selected' : ''}>ใช่</option><option ${safeVal('ผลเป็นไปตามคาดหวังหรือไม่') === 'ไม่' ? 'selected' : ''}>ไม่</option><option ${safeVal('ผลเป็นไปตามคาดหวังหรือไม่') === 'ยังไม่ทราบ' ? 'selected' : ''}>ยังไม่ทราบ</option></select></div>
                     <div><label class="form-label">การเปลี่ยนแปลงของดิน</label><input name="การเปลี่ยนแปลงของดิน" class="form-input" value="${safeVal('การเปลี่ยนแปลงของดิน')}"></div>
@@ -605,7 +605,6 @@ async function fetchData(force = false) {
 
 function initMap() {
     const page = document.getElementById('map-page');
-    // ** FIX: Replaced map and legend with new design from user image **
     page.innerHTML = `
         <div id="map" style="height: 70vh;" class="w-full rounded-lg shadow-md"></div>
         <div id="map-legend" class="bg-white p-4 mt-4 rounded-lg shadow-md"></div>
@@ -619,22 +618,29 @@ function initMap() {
     map = L.map('map').setView([13.7563, 100.5018], 6);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
-    // Render the new map legend based on the user's image
+    // ** FIX: Changed legend to a clearer list format to ensure text is visible **
     const legendContainer = document.getElementById('map-legend');
-    const legendIconHtml = (color, text) => `
-        <div class="flex flex-col items-center justify-center">
-            <svg width="32" height="32" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                <path fill="${color}" d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
-            </svg>
-            <span class="mt-1 font-semibold text-gray-700 text-sm">${text}</span>
-        </div>`;
-        
     legendContainer.innerHTML = `
         <h4 class="font-bold text-lg text-center mb-3">คำอธิบายสัญลักษณ์</h4>
-        <div class="flex justify-around items-start">
-            ${legendIconHtml('#3b82f6', 'ร้านค้า')}
-            ${legendIconHtml('#22c55e', 'เกษตรกร')}
-            ${legendIconHtml('#a855f7', 'แปลงทดลอง')}
+        <div class="space-y-3 p-2">
+            <div class="flex items-center">
+                <svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" class="mr-4 flex-shrink-0">
+                    <path fill="#3b82f6" d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
+                </svg>
+                <span class="font-semibold text-gray-800">ร้านค้า</span>
+            </div>
+            <div class="flex items-center">
+                <svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" class="mr-4 flex-shrink-0">
+                    <path fill="#22c55e" d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
+                </svg>
+                <span class="font-semibold text-gray-800">เกษตรกร</span>
+            </div>
+            <div class="flex items-center">
+                <svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" class="mr-4 flex-shrink-0">
+                    <path fill="#a855f7" d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
+                </svg>
+                <span class="font-semibold text-gray-800">แปลงทดลอง</span>
+            </div>
         </div>
     `;
 
@@ -692,7 +698,6 @@ function plotDataOnMap() {
                 }
                 popupContent += `<br><a href="https://www.google.com/maps?q=${lat},${lon}" target="_blank" class="text-blue-600 font-bold">นำทาง</a>`;
 
-                // ** FIX: Using the new createSvgIcon helper **
                 const colorMap = { 'ร้านค้า': '#3b82f6', 'เกษตรกร': '#22c55e', 'แปลงทดลอง': '#a855f7' };
                 const iconColor = colorMap[item.formType] || '#9ca3af'; // gray
                 
