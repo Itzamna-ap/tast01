@@ -100,16 +100,12 @@ function showPage(pageName, detailData = null) {
     if (pageName === 'map') initMap();
 }
 
-/**
- * Renders the dashboard with store, farmer, AND trial plot counts.
- */
 function renderDashboard() {
     const page = document.getElementById('dashboard-page');
     const storeCount = allData.filter(d => d.formType === 'ร้านค้า').length;
     const farmerCount = allData.filter(d => d.formType === 'เกษตรกร').length;
     const trialCount = allData.filter(d => d.formType === 'แปลงทดลอง').length;
     
-    // Updated to grid-cols-3 and added the third card for Trial Plots
     page.innerHTML = `
         <div class="grid grid-cols-3 gap-4 mb-6">
             <div class="bg-white p-4 rounded-lg shadow-sm text-center">
@@ -531,12 +527,9 @@ async function handleFormSubmit(e) {
         });
     });
     
-    if(fileReadPromises.length > 0) {
-        await apiCall(null, true); // Show loading
-    }
-
     try {
         if(fileReadPromises.length > 0) {
+            await apiCall(null, true); // Show loading
             imagesToUpload = await Promise.all(fileReadPromises);
         }
 
