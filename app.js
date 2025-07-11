@@ -81,6 +81,23 @@ function checkSession() {
     }
 }
 
+// --- Helper function for creating custom map icons ---
+function createSvgIcon(color) {
+    // A teardrop-shaped map pin SVG, matching the user's image.
+    const svgIcon = `
+        <svg width="32" height="32" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path fill="${color}" d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
+        </svg>`;
+    
+    return L.icon({
+        iconUrl: 'data:image/svg+xml;base64,' + btoa(svgIcon),
+        iconSize: [32, 32],
+        iconAnchor: [16, 32], // Point of the icon which will correspond to marker's location
+        popupAnchor: [0, -32] // Point from which the popup should open
+    });
+}
+
+
 // --- Page Navigation and Rendering ---
 function showPage(pageName, detailData = null) {
     document.querySelectorAll('.page-content').forEach(p => p.classList.remove('active'));
@@ -101,7 +118,6 @@ function showPage(pageName, detailData = null) {
 }
 
 function renderDashboard() {
-    // ** FIX: Removed map clearing logic to prevent map from disappearing **
     const page = document.getElementById('dashboard-page');
     const storeCount = allData.filter(d => d.formType === 'ร้านค้า').length;
     const farmerCount = allData.filter(d => d.formType === 'เกษตรกร').length;
@@ -145,7 +161,6 @@ function renderDashboard() {
 }
 
 function renderFeedPage() {
-    // ** FIX: Removed map clearing logic to prevent map from disappearing **
     const page = document.getElementById('feed-page');
     page.innerHTML = `
         <div class="flex justify-between items-center mb-4"><h1 class="text-2xl font-bold text-gray-800">ข้อมูลลูกค้า</h1><button onclick="showAddFormSelection()" class="bg-pink-500 hover:bg-pink-600 text-white font-bold py-2 px-4 rounded-lg flex items-center space-x-2"><i class="fas fa-plus"></i><span>เพิ่ม</span></button></div>
@@ -378,7 +393,6 @@ function generateForm(type, data = {}) {
                     <div><label class="form-label">ร้านค้าในสังกัด</label><select name="ร้านค้าในสังกัด" class="form-select"><option value="">-- ไม่ระบุ --</option>${storeOptions}</select></div>
                     <div><label class="form-label">เบอร์โทรเกษตรกร</label><input name="เบอร์โทรเกษตรกร" class="form-input" value="${safeVal('เบอร์โทรเกษตรกร')}"></div>
                     <div class="md:col-span-2"><label class="form-label">ที่อยู่เกษตรกร</label><textarea name="ที่อยู่เกษตรกร" class="form-textarea">${safeVal('ที่อยู่เกษตรกร')}</textarea></div>
-                    <!-- ** FIX: Added GPS field for farmer form ** -->
                     <div class="md:col-span-2"><label class="form-label">GPS</label><div class="flex"><input name="GPS" id="gps-input" class="form-input rounded-r-none" value="${safeVal('GPS')}"><button type="button" onclick="getGeoLocation('gps-input')" class="bg-blue-500 text-white px-4 rounded-r-lg"><i class="fas fa-map-marker-alt"></i></button></div></div>
                     <div><label class="form-label">เพศเกษตรกร</label><select name="เพศเกษตรกร" class="form-select"><option ${safeVal('เพศเกษตรกร') === 'ชาย' ? 'selected' : ''}>ชาย</option><option ${safeVal('เพศเกษตรกร') === 'หญิง' ? 'selected' : ''}>หญิง</option></select></div>
                     <div><label class="form-label">อายุเกษตรกร</label><input name="อายุเกษตรกร" type="number" class="form-input" value="${safeVal('อายุเกษตรกร')}"></div>
@@ -591,9 +605,9 @@ async function fetchData(force = false) {
 
 function initMap() {
     const page = document.getElementById('map-page');
-    // ** FIX: Adjusted map height and improved legend styling **
+    // ** FIX: Replaced map and legend with new design from user image **
     page.innerHTML = `
-        <div id="map" style="height: 65vh;" class="w-full rounded-lg shadow-md"></div>
+        <div id="map" style="height: 70vh;" class="w-full rounded-lg shadow-md"></div>
         <div id="map-legend" class="bg-white p-4 mt-4 rounded-lg shadow-md"></div>
     `;
     
@@ -605,23 +619,22 @@ function initMap() {
     map = L.map('map').setView([13.7563, 100.5018], 6);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
-    // Render the map legend with improved layout
+    // Render the new map legend based on the user's image
     const legendContainer = document.getElementById('map-legend');
+    const legendIconHtml = (color, text) => `
+        <div class="flex flex-col items-center justify-center">
+            <svg width="32" height="32" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path fill="${color}" d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
+            </svg>
+            <span class="mt-1 font-semibold text-gray-700 text-sm">${text}</span>
+        </div>`;
+        
     legendContainer.innerHTML = `
         <h4 class="font-bold text-lg text-center mb-3">คำอธิบายสัญลักษณ์</h4>
-        <div class="grid grid-cols-3 gap-2 text-center text-sm">
-            <div class="flex flex-col items-center p-2">
-                <img src="https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png" class="h-8">
-                <span class="mt-1 font-medium text-gray-700">ร้านค้า</span>
-            </div>
-            <div class="flex flex-col items-center p-2">
-                <img src="https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png" class="h-8">
-                <span class="mt-1 font-medium text-gray-700">เกษตรกร</span>
-            </div>
-            <div class="flex flex-col items-center p-2">
-                <img src="https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-violet.png" class="h-8">
-                <span class="mt-1 font-medium text-gray-700">แปลงทดลอง</span>
-            </div>
+        <div class="flex justify-around items-start">
+            ${legendIconHtml('#3b82f6', 'ร้านค้า')}
+            ${legendIconHtml('#22c55e', 'เกษตรกร')}
+            ${legendIconHtml('#a855f7', 'แปลงทดลอง')}
         </div>
     `;
 
@@ -629,13 +642,21 @@ function initMap() {
         navigator.geolocation.getCurrentPosition(pos => {
             const coords = [pos.coords.latitude, pos.coords.longitude];
             map.setView(coords, 13);
+            
+            const userIconSvg = `
+                <svg width="32" height="32" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+                    <circle cx="16" cy="16" r="16" fill="rgba(59, 130, 246, 0.2)"/>
+                    <circle cx="16" cy="16" r="8" fill="#3B82F6" stroke="white" stroke-width="2"/>
+                </svg>`;
+
+            const userIcon = L.icon({
+                iconUrl: 'data:image/svg+xml;base64,' + btoa(userIconSvg),
+                iconSize: [32, 32],
+                iconAnchor: [16, 16],
+            });
+            
             L.marker(coords, { 
-                icon: L.icon({ 
-                    iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png', 
-                    shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png', 
-                    iconSize: [25, 41], 
-                    iconAnchor: [12, 41] 
-                }), 
+                icon: userIcon, 
                 isCurrentUser: true 
             }).addTo(map).bindPopup('<b>ตำแหน่งของคุณ</b>').openPopup();
         });
@@ -648,6 +669,7 @@ function initMap() {
 
 function plotDataOnMap() {
     if (!map) return;
+    
     map.eachLayer(layer => { 
         if (layer instanceof L.Marker && !layer.options.isCurrentUser) {
             map.removeLayer(layer); 
@@ -661,7 +683,6 @@ function plotDataOnMap() {
             if (!isNaN(lat) && !isNaN(lon)) {
                 const name = item['ชื่อร้านค้า'] || item['ชื่อเกษตรกร'] || item['เกษตรกรเจ้าของแปลง'] || 'N/A';
                 
-                // Build the popup content with additional details
                 let popupContent = `<b>${name}</b>`;
                 if (item.formType === 'เกษตรกร' && item['ร้านค้าในสังกัด']) {
                     popupContent += `<br>สังกัดร้าน: ${item['ร้านค้าในสังกัด']}`;
@@ -671,21 +692,18 @@ function plotDataOnMap() {
                 }
                 popupContent += `<br><a href="https://www.google.com/maps?q=${lat},${lon}" target="_blank" class="text-blue-600 font-bold">นำทาง</a>`;
 
-                const iconColor = { 'ร้านค้า': 'blue', 'เกษตรกร': 'green', 'แปลงทดลอง': 'violet' }[item.formType] || 'grey';
-                const markerIcon = new L.Icon({ 
-                    iconUrl: `https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-${iconColor}.png`, 
-                    shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png', 
-                    iconSize: [25, 41], 
-                    iconAnchor: [12, 41] 
-                });
+                // ** FIX: Using the new createSvgIcon helper **
+                const colorMap = { 'ร้านค้า': '#3b82f6', 'เกษตรกร': '#22c55e', 'แปลงทดลอง': '#a855f7' };
+                const iconColor = colorMap[item.formType] || '#9ca3af'; // gray
                 
-                L.marker([lat, lon], {icon: markerIcon})
+                L.marker([lat, lon], {icon: createSvgIcon(iconColor)})
                  .addTo(map)
                  .bindPopup(popupContent);
             }
         }
     });
 }
+
 
 function showMessageModal(message) {
     const modal = document.getElementById('message-modal');
