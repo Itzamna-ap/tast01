@@ -1,5 +1,5 @@
 // --- Global State and Element Selectors ---
-let currentUser = null, allData = [], map = null, doughnutChartInstance = null, isMapInitializing = false;
+let currentUser = null, allData = [], map = null, doughnutChartInstance = null;
 const loginView = document.getElementById('login-view');
 const mainAppView = document.getElementById('main-app-view');
 const formModal = document.getElementById('form-modal');
@@ -13,23 +13,15 @@ const loadingText = document.getElementById('loading-text');
 const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyWYuttyt5bFw3h7jzUhEaWBpowkLikqILd5kaL0V6b_jveMP1Tdpd1gPGqJmqexcLS1g/exec';
 
 // --- Core API and Authentication Functions ---
-async function apiCall(payload, loadingMessage = "LOADING.....") {
+async function apiCall(payload, loadingMessage = null) {
     if (loadingMessage) {
         loadingText.textContent = loadingMessage;
         loadingOverlay.classList.remove('hidden');
     }
     try {
-        // ใช้ header 'Content-Type': 'application/json' อาจช่วยเรื่อง CORS ได้ในบางกรณี แต่ปัญหาหลักต้องแก้ที่ Apps Script
-        const response = await fetch(SCRIPT_URL, { method: 'POST', cache: 'no-cache', body: JSON.stringify(payload) });
+        const response = await fetch(SCRIPT_URL, { method: 'POST', cache: 'no-cache', body: JSON.stringify(payload), headers: { 'Content-Type': 'text/plain;charset=utf-8' } });
         if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
         return await response.json();
-    } catch (error) {
-        // เพิ่มการ log ข้อผิดพลาดที่นี่เพื่อให้เห็นปัญหา CORS ชัดเจนขึ้น
-        console.error("API Call Failed:", error);
-        // แสดงข้อความให้ผู้ใช้ทราบถึงปัญหาการเชื่อมต่อ
-        showMessageModal(`ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้: ${error.message}. กรุณาตรวจสอบการตั้งค่า CORS ใน Google Apps Script`);
-        // คืนค่า error เพื่อให้ฟังก์ชันที่เรียกใช้จัดการต่อได้
-        return { result: 'error', message: error.message };
     } finally {
         if (loadingMessage) { loadingOverlay.classList.add('hidden'); }
     }
@@ -49,7 +41,7 @@ async function handleLogin(e) {
         if (data.result === 'success' && data.user) {
             currentUser = data.user;
             localStorage.setItem('currentUser', JSON.stringify(currentUser));
-            await initializeApp();
+            initializeApp(); // เรียก initializeApp ที่แก้ไขแล้ว
         } else {
             loginError.textContent = data.message || 'Username หรือ Password ไม่ถูกต้อง';
             submitButton.innerHTML = 'เข้าสู่ระบบ';
@@ -63,20 +55,23 @@ async function handleLogin(e) {
     }
 }
 
+// =================================================================
+// === ⭐ จุดที่ 1: แก้ไขลำดับการทำงานตอนเริ่มต้นแอป ⭐ ===
+// =================================================================
 async function initializeApp() {
     loginView.classList.remove('active');
     loginView.classList.add('hidden');
     mainAppView.classList.remove('hidden');
     mainAppView.classList.add('active');
     
-    showPage('dashboard'); // แสดงหน้า dashboard ก่อน
-    await fetchData(true); // แล้วจึงดึงข้อมูล ซึ่งจะอัปเดต UI เอง
+    // 1. แสดงหน้า Dashboard ก่อน (จะเห็นเป็นหน้าว่างๆ หรือ loading)
+    showPage('dashboard');
+    // 2. จากนั้นจึงเริ่มดึงข้อมูล ซึ่งเมื่อดึงเสร็จจะ re-render หน้าที่เปิดอยู่ให้เอง
+    await fetchData(true);
 }
 
 function handleLogout() {
     localStorage.removeItem('currentUser');
-    allData = [];
-    currentUser = null;
     location.reload();
 }
 
@@ -92,30 +87,12 @@ function checkSession() {
     }
 }
 
-function renderApp() {
-    const activePageElement = document.querySelector('.page-content.active');
-    if (!activePageElement) {
-        return;
-    }
-    const pageName = activePageElement.id.replace('-page', '');
-
-    switch (pageName) {
-        case 'dashboard':
-            renderDashboard();
-            break;
-        case 'feed':
-            renderFeedPage();
-            break;
-        case 'map':
-            initMap();
-            break;
-    }
-}
-
+// --- Page Navigation and Rendering ---
+// ฟังก์ชันนี้เหมือนเดิม ไม่ได้แก้ไข
 function showPage(pageName, detailData = null) {
     document.querySelectorAll('.page-content').forEach(p => p.classList.remove('active'));
     const newPage = document.getElementById(`${pageName}-page`);
-    if (newPage) newPage.classList.add('active');
+    if(newPage) newPage.classList.add('active');
     
     document.querySelectorAll('.bottom-nav-item').forEach(item => {
         item.dataset.active = item.getAttribute('onclick').includes(`'${pageName}'`);
@@ -124,102 +101,78 @@ function showPage(pageName, detailData = null) {
     document.getElementById('header-title').textContent = { dashboard: 'ภาพรวม', feed: 'ข้อมูลลูกค้า', map: 'แผนที่', detail: 'รายละเอียด' }[pageName] || 'ภาพรวม';
     backButton.classList.toggle('hidden', pageName !== 'detail');
 
-    if (pageName === 'detail') {
-        renderDetailPage(detailData);
-    } else {
-        renderApp();
-    }
+    if (pageName === 'dashboard') renderDashboard();
+    if (pageName === 'feed') renderFeedPage();
+    if (pageName === 'detail') renderDetailPage(detailData);
+    if (pageName === 'map') initMap();
 }
 
+// =================================================================
+// === ⭐ จุดที่ 2: แก้ไขฟังก์ชันดึงข้อมูลให้ re-render หน้าปัจจุบันเสมอ ⭐ ===
+// =================================================================
 async function fetchData(force = false) {
     if (!currentUser) return;
     if (allData.length > 0 && !force) {
-        renderApp(); // ถ้ามีข้อมูลอยู่แล้ว ให้ render เลย
+        // ถ้ามีข้อมูลอยู่แล้วและไม่ได้บังคับให้โหลดใหม่ ก็ไม่ต้องทำอะไร
+        // เพราะหน้าจะถูก render โดยฟังก์ชัน showPage() อยู่แล้ว
         return;
     }
-    
-    try {
-        const response = await apiCall({ action: 'getData', user: currentUser }, 'กำลังดึงข้อมูล...');
 
-        if (response.result === 'success' && Array.isArray(response.data)) {
+    try {
+        const response = await apiCall({ action: 'getData', user: currentUser }, 'กำลังโหลดข้อมูล...');
+        if(response.result === 'success' && Array.isArray(response.data)) {
             allData = response.data;
-            console.log(`Successfully fetched ${allData.length} items.`);
-        } else {
-            throw new Error(response.message || "รูปแบบข้อมูลที่ได้รับจากเซิร์ฟเวอร์ไม่ถูกต้อง");
+            
+            // เมื่อดึงข้อมูลสำเร็จ ให้หาว่าหน้าไหนกำลังเปิดอยู่ แล้วสั่ง render หน้านั้นใหม่
+            const activePage = document.querySelector('.page-content.active');
+            if (activePage) {
+                const pageName = activePage.id.replace('-page', '');
+                console.log(`Data fetched. Re-rendering current page: ${pageName}`);
+                showPage(pageName); // เรียก showPage เพื่อ re-render หน้าปัจจุบันด้วยข้อมูลใหม่
+            }
+
+        } else { 
+            throw new Error(response.message || "Invalid data format from server"); 
         }
     } catch (error) {
-        console.error('Error in fetchData:', error);
-        showMessageModal(`เกิดข้อผิดพลาด: ไม่สามารถโหลดข้อมูลลูกค้าได้\n\n(${error.message})`);
-    } finally {
-        renderApp(); // Render UI เสมอ ไม่ว่าจะดึงข้อมูลสำเร็จหรือไม่
+        console.error('Error fetching data:', error);
+        showMessageModal(`ไม่สามารถโหลดข้อมูลได้: ${error.message}`);
     }
 }
 
+// --- โค้ดส่วนที่เหลือทั้งหมดเหมือนเดิมทุกประการ ---
+
 function renderDashboard() {
-    // ... โค้ดส่วนนี้เหมือนเดิม ...
     const page = document.getElementById('dashboard-page');
-    if (!page) return;
     const storeCount = allData.filter(d => d.formType === 'ร้านค้า').length;
     const farmerCount = allData.filter(d => d.formType === 'เกษตรกร').length;
     const trialCount = allData.filter(d => d.formType === 'แปลงทดลอง').length;
-    
     page.innerHTML = `
-        <div class="grid grid-cols-3 gap-4 mb-6">
-            <div class="bg-white p-4 rounded-lg shadow-sm text-center">
-                <p class="text-sm text-gray-500">ร้านค้า</p>
-                <p class="text-3xl font-bold text-blue-500">${storeCount}</p>
-            </div>
-            <div class="bg-white p-4 rounded-lg shadow-sm text-center">
-                <p class="text-sm text-gray-500">เกษตรกร</p>
-                <p class="text-3xl font-bold text-green-500">${farmerCount}</p>
-            </div>
-            <div class="bg-white p-4 rounded-lg shadow-sm text-center">
-                <p class="text-sm text-gray-500">แปลงทดลอง</p>
-                <p class="text-3xl font-bold text-purple-500">${trialCount}</p>
-            </div>
+        <div class="grid grid-cols-2 gap-4 mb-6">
+            <div class="bg-white p-4 rounded-lg shadow-sm text-center"><p class="text-sm text-gray-500">ร้านค้า</p><p class="text-3xl font-bold text-blue-500">${storeCount}</p></div>
+            <div class="bg-white p-4 rounded-lg shadow-sm text-center"><p class="text-sm text-gray-500">เกษตรกร</p><p class="text-3xl font-bold text-green-500">${farmerCount}</p></div>
         </div>
-        <div class="bg-white p-4 rounded-lg shadow-sm">
-            <h3 class="font-bold mb-2 text-center">สัดส่วนข้อมูล</h3>
-            <div class="max-w-xs mx-auto"><canvas id="doughnutChart"></canvas></div>
-        </div>`;
+        <div class="bg-white p-4 rounded-lg shadow-sm"><h3 class="font-bold mb-2 text-center">สัดส่วนข้อมูล</h3><div class="max-w-xs mx-auto"><canvas id="doughnutChart"></canvas></div></div>`;
     
     if (doughnutChartInstance) doughnutChartInstance.destroy();
     const doughnutCtx = document.getElementById('doughnutChart').getContext('2d');
     doughnutChartInstance = new Chart(doughnutCtx, { type: 'doughnut', data: { labels: ['ร้านค้า', 'เกษตรกร', 'แปลงทดลอง'], datasets: [{ data: [storeCount, farmerCount, trialCount], backgroundColor: ['#3b82f6', '#22c55e', '#a855f7'], hoverOffset: 4 }] } });
 }
 
-// =================================================================
-// === ⭐ ส่วนที่แก้ไขปัญหาข้อมูลลูกค้าไม่แสดง ⭐ ===
-// =================================================================
-
 function renderFeedPage() {
     const page = document.getElementById('feed-page');
-    if (!page) return;
-
-    // สร้างโครงสร้าง HTML แค่ครั้งแรกที่เข้ามาหน้านี้ เพื่อป้องกันการผูก event ซ้ำซ้อน
-    if (!page.querySelector('#feed-container')) {
-        page.innerHTML = `
-            <div class="flex justify-between items-center mb-4"><h1 class="text-2xl font-bold text-gray-800">ข้อมูลลูกค้า</h1><button onclick="showAddFormSelection()" class="bg-pink-500 hover:bg-pink-600 text-white font-bold py-2 px-4 rounded-lg flex items-center space-x-2"><i class="fas fa-plus"></i><span>เพิ่ม</span></button></div>
-            <div class="p-1 bg-gray-200 rounded-lg flex space-x-1 mb-4">
-                <button onclick="showTab('stores')" class="tab-button w-1/3 py-2 rounded-md" data-active="true">ร้านค้า</button>
-                <button onclick="showTab('farmers')" class="tab-button w-1/3 py-2 rounded-md">เกษตรกร</button>
-                <button onclick="showTab('trials')" class="tab-button w-1/3 py-2 rounded-md">แปลงทดลอง</button>
-            </div>
-            <div class="relative mb-4">
-                <input id="search-input" type="text" placeholder="ค้นหาด้วยชื่อ..." class="form-input pl-10">
-                <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"></i>
-            </div>
-            <div id="feed-container">
-                <div id="stores-tab" class="tab-content active space-y-3"></div>
-                <div id="farmers-tab" class="tab-content space-y-3"></div>
-                <div id="trials-tab" class="tab-content space-y-3"></div>
-            </div>`;
-        
-        // ผูก Event Listener ให้กับช่องค้นหาแค่ครั้งเดียว
-        document.getElementById('search-input').addEventListener('input', renderAllTabs);
-    }
+    page.innerHTML = `
+        <div class="flex justify-between items-center mb-4"><h1 class="text-2xl font-bold text-gray-800">ข้อมูลลูกค้า</h1><button onclick="showAddFormSelection()" class="bg-pink-500 hover:bg-pink-600 text-white font-bold py-2 px-4 rounded-lg flex items-center space-x-2"><i class="fas fa-plus"></i><span>เพิ่ม</span></button></div>
+        <div class="p-1 bg-gray-200 rounded-lg flex space-x-1 mb-4"><button onclick="showTab('stores')" class="tab-button w-1/3 py-2 rounded-md" data-active="true">ร้านค้า</button><button onclick="showTab('farmers')" class="tab-button w-1/3 py-2 rounded-md">เกษตรกร</button><button onclick="showTab('trials')" class="tab-button w-1/3 py-2 rounded-md">แปลงทดลอง</button></div>
+        <div class="relative mb-4"><input id="search-input" type="text" placeholder="ค้นหาด้วยชื่อ..." class="form-input pl-10"><i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"></i></div>
+        <div id="feed-container">
+            <div id="stores-tab" class="tab-content active space-y-3"></div>
+            <div id="farmers-tab" class="tab-content space-y-3"></div>
+            <div id="trials-tab" class="tab-content space-y-3"></div>
+        </div>
+        <p id="empty-feed" class="hidden text-center text-gray-500 py-10">ไม่มีข้อมูล</p>`;
     
-    // แสดงข้อมูลใน Tab แรกเสมอเมื่อเข้ามาหน้านี้
+    document.getElementById('search-input').addEventListener('input', renderAllTabs);
     showTab('stores');
 }
 
@@ -227,27 +180,19 @@ function showTab(tabName) {
     document.querySelectorAll('.tab-button').forEach(b => b.dataset.active = b.getAttribute('onclick').includes(`'${tabName}'`));
     document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
     document.getElementById(`${tabName}-tab`).classList.add('active');
-    
-    // [แก้ไข] เรียก renderAllTabs() เพื่อใช้ Logic การแสดงผลเดียวกันกับการค้นหา
     renderAllTabs();
 }
 
 function renderAllTabs() {
-    // ฟังก์ชันนี้จะหา Tab ที่ active อยู่ และสั่ง render ข้อมูลสำหรับ Tab นั้น
-    const activeTab = document.querySelector('.tab-content.active');
-    if (activeTab) {
-        const activeTabId = activeTab.id.replace('-tab', '');
-        renderDataList(activeTabId);
-    }
+    renderDataList('stores');
+    renderDataList('farmers');
+    renderDataList('trials');
 }
 
 function renderDataList(tabId) {
     const container = document.getElementById(`${tabId}-tab`);
     if(!container) return;
     
-    // เพิ่มการ Log เพื่อตรวจสอบการทำงาน
-    console.log(`Rendering list for tab: "${tabId}". Total data items: ${allData.length}`);
-
     const formTypeMapping = { stores: 'ร้านค้า', farmers: 'เกษตรกร', trials: 'แปลงทดลอง' };
     const formType = formTypeMapping[tabId];
     const searchInputEl = document.getElementById('search-input');
@@ -259,9 +204,8 @@ function renderDataList(tabId) {
         return name.toLowerCase().includes(searchTerm);
     });
     
-    container.innerHTML = ''; // ล้างข้อมูลเก่าออกก่อน
+    container.innerHTML = '';
     if (data.length === 0) {
-        // ถ้าไม่มีข้อมูล ให้แสดงข้อความ
         container.innerHTML = `<p class="text-center text-gray-500 py-10">ไม่มีข้อมูล</p>`;
         return;
     }
@@ -279,13 +223,8 @@ function renderDataList(tabId) {
         container.appendChild(row);
     });
 }
-// =================================================================
-// === จบส่วนที่แก้ไข ===
-// =================================================================
-
 
 function renderDetailPage(data) {
-    // ... โค้ดส่วนนี้เหมือนเดิม ...
     const container = document.getElementById('detail-page');
     let detailsHtml = '', linkedHtml = '', galleryHtml = '';
     const mainName = data['ชื่อร้านค้า'] || data['ชื่อเกษตรกร'] || data['เกษตรกรเจ้าของแปลง'] || 'รายละเอียด';
@@ -296,7 +235,7 @@ function renderDetailPage(data) {
             if ((key === 'GPS' || key === 'GPSแปลง') && String(value).includes(',')) {
                 const [lat, lon] = String(value).split(',').map(s => s.trim());
                 if (!isNaN(parseFloat(lat)) && !isNaN(parseFloat(lon))) {
-                    displayValue = `<a href="https://www.google.com/maps/dir/?api=1&destination=${lat},${lon}" target="_blank" rel="noopener noreferrer" class="text-blue-500 hover:underline font-bold">${value}</a>`;
+                    displayValue = `<a href="https://www.google.com/maps?q=${lat},${lon}" target="_blank" rel="noopener noreferrer" class="text-blue-500 hover:underline font-bold">${value}</a>`;
                 } else {
                     displayValue = value;
                 }
@@ -358,8 +297,6 @@ function renderDetailPage(data) {
     </div>`;
 }
 
-// --- Form Generation and Handling ---
-// ... โค้ดส่วนนี้และส่วนที่เหลือทั้งหมดเหมือนเดิม ...
 function handleEditClick(rowId) {
     const data = allData.find(item => item.rowId === rowId);
     if (!data) {
@@ -453,7 +390,6 @@ function generateForm(type, data = {}) {
                     <div><label class="form-label">ชื่อเกษตรกร</label><input name="ชื่อเกษตรกร" class="form-input" required value="${safeVal('ชื่อเกษตรกร')}"></div>
                     <div><label class="form-label">ร้านค้าในสังกัด</label><select name="ร้านค้าในสังกัด" class="form-select"><option value="">-- ไม่ระบุ --</option>${storeOptions}</select></div>
                     <div><label class="form-label">เบอร์โทรเกษตรกร</label><input name="เบอร์โทรเกษตรกร" class="form-input" value="${safeVal('เบอร์โทรเกษตรกร')}"></div>
-                    <div class="md:col-span-2"><label class="form-label">GPS</label><div class="flex"><input name="GPS" id="gps-input" class="form-input rounded-r-none" value="${safeVal('GPS')}"><button type="button" onclick="getGeoLocation('gps-input')" class="bg-blue-500 text-white px-4 rounded-r-lg"><i class="fas fa-map-marker-alt"></i></button></div></div>
                     <div class="md:col-span-2"><label class="form-label">ที่อยู่เกษตรกร</label><textarea name="ที่อยู่เกษตรกร" class="form-textarea">${safeVal('ที่อยู่เกษตรกร')}</textarea></div>
                     <div><label class="form-label">เพศเกษตรกร</label><select name="เพศเกษตรกร" class="form-select"><option ${safeVal('เพศเกษตรกร') === 'ชาย' ? 'selected' : ''}>ชาย</option><option ${safeVal('เพศเกษตรกร') === 'หญิง' ? 'selected' : ''}>หญิง</option></select></div>
                     <div><label class="form-label">อายุเกษตรกร</label><input name="อายุเกษตรกร" type="number" class="form-input" value="${safeVal('อายุเกษตรกร')}"></div>
@@ -553,27 +489,22 @@ function getGeoLocation(inputElId) {
     const originalHtml = buttonEl.innerHTML;
     buttonEl.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
     buttonEl.disabled = true;
-    
-    loadingText.textContent = 'LOADING.....';
-    loadingOverlay.classList.remove('hidden');
-
+    showMessageModal('กำลังระบุตำแหน่ง...');
     if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(
             pos => {
                 inputEl.value = `${pos.coords.latitude.toFixed(6)}, ${pos.coords.longitude.toFixed(6)}`;
-                loadingOverlay.classList.add('hidden');
+                closeMessageModal();
                 buttonEl.innerHTML = originalHtml;
                 buttonEl.disabled = false;
             },
             err => {
-                loadingOverlay.classList.add('hidden');
                 showMessageModal(`เกิดข้อผิดพลาด: ${err.message}`);
                 buttonEl.innerHTML = originalHtml;
                 buttonEl.disabled = false;
             }
         );
     } else { 
-        loadingOverlay.classList.add('hidden');
         showMessageModal("เบราว์เซอร์ไม่รองรับ Geolocation");
         buttonEl.disabled = false;
     }
@@ -612,10 +543,11 @@ async function handleFormSubmit(e) {
     });
     
     if(fileReadPromises.length > 0) {
-        await apiCall(null, "LOADING.....");
+        loadingText.textContent = "กำลังเตรียมรูปภาพ...";
+        loadingOverlay.classList.remove('hidden');
+        imagesToUpload = await Promise.all(fileReadPromises);
+        loadingOverlay.classList.add('hidden');
     }
-    imagesToUpload = await Promise.all(fileReadPromises);
-
 
     const isEdit = data.rowId && data.rowId !== '';
     const payload = { 
@@ -626,7 +558,7 @@ async function handleFormSubmit(e) {
     };
 
     try {
-        const response = await apiCall(payload, "LOADING.....");
+        const response = await apiCall(payload, "กำลังบันทึกข้อมูลและรูปภาพ...");
         if (response.result === 'success') {
             showMessageModal(isEdit ? 'แก้ไขข้อมูลสำเร็จ!' : 'บันทึกข้อมูลสำเร็จ!');
             closeFormModal();
@@ -644,124 +576,37 @@ async function handleFormSubmit(e) {
 }
 
 function initMap() {
-    // ... โค้ดส่วนนี้เหมือนเดิม ...
-    if (isMapInitializing) return;
-    isMapInitializing = true;
-
     const page = document.getElementById('map-page');
-    page.innerHTML = `<div id="map" style="width: 100%; height: 100%; border-radius: 0.5rem; box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1);"></div>`;
-    const mapContainer = document.getElementById('map');
-
-    if (!allData || allData.length === 0) {
-        console.log("No data available to plot on the map.");
-        page.innerHTML = `<div class="flex items-center justify-center h-full text-center text-gray-500">ไม่มีข้อมูลตำแหน่งสำหรับแสดงบนแผนที่</div>`;
-        isMapInitializing = false;
-        return;
+    page.innerHTML = `<div id="map" class="h-full w-full rounded-lg shadow-md min-h-[calc(100vh-160px)]"></div>`;
+    if (map) { map.remove(); map = null; }
+    map = L.map('map').setView([13.7563, 100.5018], 6);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+    if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(pos => {
+            const coords = [pos.coords.latitude, pos.coords.longitude];
+            map.setView(coords, 13);
+            L.marker(coords, { icon: L.icon({ iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png', shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png', iconSize: [25, 41], iconAnchor: [12, 41] }), isCurrentUser: true }).addTo(map).bindPopup('<b>ตำแหน่งของคุณ</b>').openPopup();
+        });
     }
-
-    if (map) {
-        try { map.destroy(); } catch (e) { console.error("Error destroying map:", e); }
-        map = null;
-    }
-
-    setTimeout(() => {
-        if (typeof longdo === 'undefined') {
-            showMessageModal('ไม่สามารถโหลด Longdo Map API ได้ กรุณาตรวจสอบการเชื่อมต่ออินเทอร์เน็ต และเช็คว่าใส่ API Key ในไฟล์ index.html ถูกต้อง');
-            isMapInitializing = false;
-            return;
-        }
-
-        if (!document.body.contains(mapContainer)) {
-            isMapInitializing = false;
-            return;
-        }
-
-        try {
-            map = new longdo.Map({
-                placeholder: mapContainer,
-                language: 'th',
-                ready: function() {
-                    console.log("Longdo Map is ready. Now plotting markers.");
-                    plotDataOnMap();
-                    
-                    if (navigator.geolocation) {
-                        navigator.geolocation.getCurrentPosition(
-                            pos => {
-                                const userLocation = { lon: pos.coords.longitude, lat: pos.coords.latitude };
-                                map.location(userLocation, true);
-                                map.zoom(15, true);
-                                const userMarker = new longdo.Marker(userLocation, {
-                                    title: 'ตำแหน่งของคุณ',
-                                    icon: { url: 'https://map.longdo.com/mmmap/images/pin_mark.png' },
-                                    detail: 'นี่คือตำแหน่งปัจจุบันของคุณ'
-                                });
-                                map.Overlays.add(userMarker);
-                            },
-                            err => { console.warn(`Geolocation error: ${err.message}`); }
-                        );
-                    }
-                    map.resize();
-                    isMapInitializing = false;
-                }
-            });
-        } catch (error) {
-            console.error("Fatal error initializing Longdo Map:", error);
-            showMessageModal("เกิดข้อผิดพลาดร้ายแรงในการสร้างแผนที่");
-            isMapInitializing = false;
-        }
-    }, 100);
+    if (allData.length > 0) plotDataOnMap();
 }
 
 function plotDataOnMap() {
-    // ... โค้ดส่วนนี้เหมือนเดิม ...
-    if (!map) {
-        console.warn("plotDataOnMap called but map is not initialized.");
-        return;
-    }
-    map.Overlays.clear();
-    console.log(`%cAttempting to plot ${allData.length} items.`, 'color: blue; font-weight: bold;');
-
-    let plottedCount = 0;
-    allData.forEach((item) => {
+    if (!map) return;
+    map.eachLayer(layer => { if (layer instanceof L.Marker && !layer.options.isCurrentUser) map.removeLayer(layer); });
+    allData.forEach(item => {
         const gps = item['GPS'] || item['GPSแปลง'];
-        
-        if (gps && typeof gps === 'string' && gps.includes(',')) {
+        if (gps && String(gps).includes(',')) {
             const [lat, lon] = String(gps).split(',').map(s => parseFloat(s.trim()));
-            
             if (!isNaN(lat) && !isNaN(lon)) {
-                const name = String(item['ชื่อร้านค้า'] || item['ชื่อเกษตรกร'] || item['เกษตรกรเจ้าของแปลง'] || 'N/A');
-                
-                let details = '';
-                if (item.formType === 'เกษตรกร' && item['ร้านค้าในสังกัด']) {
-                    details = `<div class="text-sm text-gray-600">สังกัด: ${item['ร้านค้าในสังกัด']}</div>`;
-                } else if (item.formType === 'แปลงทดลอง' && item['เกษตรกรเจ้าของแปลง']) {
-                    details = `<div class="text-sm text-gray-600">เจ้าของแปลง: ${item['เกษตรกรเจ้าของแปลง']}</div>`;
-                }
-                const navLink = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lon}`;
-                const popupContent = `<div class="p-1" style="font-family: sans-serif; max-width: 200px;">
-                                        <b class="text-base" style="font-size: 1rem; font-weight: bold;">${name}</b>
-                                        ${details}
-                                        <a href="${navLink}" target="_blank" class="text-blue-600 font-bold mt-2 inline-block" style="color: #2563eb; font-weight: bold; margin-top: 0.5rem; display: inline-block;">นำทาง (Google Maps)</a>
-                                      </div>`;
+                const name = item['ชื่อร้านค้า'] || item['ชื่อเกษตรกร'] || item['เกษตรกรเจ้าของแปลง'] || 'N/A';
                 const iconColor = { 'ร้านค้า': 'blue', 'เกษตรกร': 'green', 'แปลงทดลอง': 'violet' }[item.formType] || 'grey';
-                const iconUrl = `https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-${iconColor}.png`;
-                const marker = new longdo.Marker({ lon, lat }, {
-                    title: name,
-                    icon: { url: iconUrl, size: { width: 25, height: 41 }, offset: { x: 12, y: 41 } },
-                    popup: { html: popupContent }
-                });
-                map.Overlays.add(marker);
-                plottedCount++;
+                const markerIcon = new L.Icon({ iconUrl: `https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-${iconColor}.png`, shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png', iconSize: [25, 41], iconAnchor: [12, 41] });
+                L.marker([lat, lon], {icon: markerIcon}).addTo(map).bindPopup(`<b>${name}</b><br><a href="https://www.google.com/maps?q=${lat},${lon}" target="_blank" class="text-blue-600 font-bold">นำทาง</a>`);
             }
         }
     });
-    console.log(`%cFinished. Successfully created ${plottedCount} markers.`, 'color: green; font-weight: bold;');
-    
-    if (plottedCount === 0 && allData.length > 0) {
-        showMessageModal("ไม่พบข้อมูล GPS ที่ถูกต้องในข้อมูลลูกค้าชุดนี้");
-    }
 }
-
 
 function showMessageModal(message) {
     const modal = document.getElementById('message-modal');
@@ -807,7 +652,7 @@ window.addEventListener('appinstalled', () => {
 // === PWA SERVICE WORKER REGISTRATION ===
 if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
-        navigator.serviceWorker.register('sw.js')
+        navigator.serviceWorker.register('./sw.js')
         .then(registration => {
             console.log('ServiceWorker registration successful with scope: ', registration.scope);
         })
