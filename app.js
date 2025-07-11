@@ -101,11 +101,13 @@ function showPage(pageName, detailData = null) {
 }
 
 function renderDashboard() {
-    // ** FIX: Ensure map object is destroyed before rendering this page **
+    // ** FIX: Ensure map object is destroyed and its container is cleared **
     if (map) {
         map.remove();
         map = null;
     }
+    document.getElementById('map-page').innerHTML = ''; 
+
     const page = document.getElementById('dashboard-page');
     const storeCount = allData.filter(d => d.formType === 'ร้านค้า').length;
     const farmerCount = allData.filter(d => d.formType === 'เกษตรกร').length;
@@ -149,11 +151,13 @@ function renderDashboard() {
 }
 
 function renderFeedPage() {
-    // ** FIX: Ensure map object is destroyed before rendering this page **
+    // ** FIX: Ensure map object is destroyed and its container is cleared **
     if (map) {
         map.remove();
         map = null;
     }
+    document.getElementById('map-page').innerHTML = '';
+
     const page = document.getElementById('feed-page');
     page.innerHTML = `
         <div class="flex justify-between items-center mb-4"><h1 class="text-2xl font-bold text-gray-800">ข้อมูลลูกค้า</h1><button onclick="showAddFormSelection()" class="bg-pink-500 hover:bg-pink-600 text-white font-bold py-2 px-4 rounded-lg flex items-center space-x-2"><i class="fas fa-plus"></i><span>เพิ่ม</span></button></div>
