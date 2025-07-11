@@ -228,12 +228,12 @@ function showTab(tabName) {
     document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
     document.getElementById(`${tabName}-tab`).classList.add('active');
     
-    // [แก้ไข] เรียก render เฉพาะ Tab ที่กำลังแสดงผล
-    renderDataList(tabName);
+    // [แก้ไข] เรียก renderAllTabs() เพื่อใช้ Logic การแสดงผลเดียวกันกับการค้นหา
+    renderAllTabs();
 }
 
 function renderAllTabs() {
-    // [แก้ไข] ฟังก์ชันนี้ถูกเรียกโดยช่องค้นหา ให้ render เฉพาะ Tab ที่กำลัง Active อยู่เท่านั้น
+    // ฟังก์ชันนี้จะหา Tab ที่ active อยู่ และสั่ง render ข้อมูลสำหรับ Tab นั้น
     const activeTab = document.querySelector('.tab-content.active');
     if (activeTab) {
         const activeTabId = activeTab.id.replace('-tab', '');
