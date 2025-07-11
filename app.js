@@ -1,5 +1,5 @@
 // --- Global State and Element Selectors ---
-let currentUser = null, allData = [], map = null, doughnutChartInstance = null;
+let currentUser = null, allData = [], map = null, doughnutChartInstance = null, isMapInitializing = false;
 const loginView = document.getElementById('login-view');
 const mainAppView = document.getElementById('main-app-view');
 const formModal = document.getElementById('form-modal');
@@ -585,79 +585,122 @@ async function fetchData(force = false) {
     }
 }
 
-// --- Longdo Map Functions (REVISED AGAIN FOR ROBUSTNESS) ---
+// --- Longdo Map Functions (NEW AND ROBUST IMPLEMENTATION) ---
+// This new implementation is designed to be more resilient to timing issues
+// common in single-page applications by ensuring the map container is fully
+// rendered before the map is initialized.
+
 function initMap() {
+    // Prevent multiple initializations if the user clicks the tab quickly.
+    if (isMapInitializing) {
+        return;
+    }
+    isMapInitializing = true;
+
     const page = document.getElementById('map-page');
-    // First, create the placeholder element for the map.
+    // Always start with a clean container.
     page.innerHTML = `<div id="map" class="h-full w-full rounded-lg shadow-md min-h-[calc(100vh-230px)]"></div>`;
+    const mapContainer = document.getElementById('map');
 
-    // --- การแก้ไข: ใช้ setTimeout 0ms เพื่อหน่วงการสร้างแผนที่ ---
-    // เพื่อให้แน่ใจว่า Browser ได้แสดงผลและคำนวณขนาดของ #map-page และ #map container เสร็จสิ้นแล้ว
-    setTimeout(() => {
-        const mapContainer = document.getElementById('map');
-        if (!mapContainer) {
-            console.error("Map container not found after timeout.");
-            return; 
+    // Safely destroy any previous map instance.
+    if (map) {
+        try {
+            map.destroy();
+        } catch (e) {
+            console.error("Error destroying previous map instance:", e);
         }
+        map = null;
+    }
 
+    // A short delay is crucial. It gives the browser time to render the #map
+    // container with its correct dimensions, especially when CSS transitions are used
+    // for showing the page. 100ms is a safe value.
+    setTimeout(() => {
+        // Double-check if the map library is loaded.
         if (typeof longdo === 'undefined') {
-            showMessageModal('ไม่สามารถโหลด Longdo Map ได้ กรุณาตรวจสอบการเชื่อมต่ออินเทอร์เน็ตและการตั้งค่า API Key ในไฟล์ index.html');
+            showMessageModal('ไม่สามารถโหลด Longdo Map API ได้ กรุณาตรวจสอบการเชื่อมต่ออินเทอร์เน็ต และเช็คว่าใส่ API Key ในไฟล์ index.html ถูกต้อง');
+            isMapInitializing = false; // Reset the flag
             return;
         }
 
-        // Destroy any previous map instance to prevent memory leaks
-        if (map) {
-            try {
-                map.destroy();
-            } catch (e) {
-                console.error("Error destroying previous map instance:", e);
-            }
-            map = null;
+        // Verify the container is still in the document. The user might have navigated away.
+        if (!document.body.contains(mapContainer)) {
+            console.log("Map container is no longer in the DOM. Aborting map initialization.");
+            isMapInitializing = false; // Reset the flag
+            return;
         }
 
-        // Now, initialize the map inside the correctly-sized container.
-        map = new longdo.Map({
-            placeholder: mapContainer,
-            language: 'th',
-            ready: function() {
-                // The map is now ready. It's still good practice to call resize one last time.
-                map.resize();
-                
-                plotDataOnMap();
+        try {
+            // Initialize the map.
+            // !!! IMPORTANT / ข้อควรจำ !!!
+            // The API key '23039d095f853aed32d624b72c57eab4' should be placed
+            // in the <script> tag in your index.html file, like this:
+            // <script src="https://api.longdo.com/map/?key=23039d095f853aed32d624b72c57eab4"></script>
+            map = new longdo.Map({
+                placeholder: mapContainer,
+                language: 'th',
+                ready: function() {
+                    // This function is called when the map is fully loaded and ready.
+                    console.log("Longdo Map is ready.");
+                    
+                    // Plot data points first. This will clear any existing overlays.
+                    plotDataOnMap();
 
-                if (navigator.geolocation) {
-                    navigator.geolocation.getCurrentPosition(pos => {
-                        const userLocation = {
-                            lon: pos.coords.longitude,
-                            lat: pos.coords.latitude
-                        };
-                        map.location(userLocation, true);
-                        map.zoom(15, true);
-                        const userMarker = new longdo.Marker(userLocation, {
-                            title: 'ตำแหน่งของคุณ',
-                            icon: {
-                                url: 'https://map.longdo.com/mmmap/images/pin_mark.png'
+                    // Now, add the user's location marker so it's not cleared.
+                    if (navigator.geolocation) {
+                        navigator.geolocation.getCurrentPosition(
+                            pos => {
+                                const userLocation = {
+                                    lon: pos.coords.longitude,
+                                    lat: pos.coords.latitude
+                                };
+                                map.location(userLocation, true); // Center the map
+                                map.zoom(15, true);
+                                const userMarker = new longdo.Marker(userLocation, {
+                                    title: 'ตำแหน่งของคุณ',
+                                    icon: { url: 'https://map.longdo.com/mmmap/images/pin_mark.png' },
+                                    detail: 'นี่คือตำแหน่งปัจจุบันของคุณ'
+                                });
+                                map.Overlays.add(userMarker);
                             },
-                            detail: 'นี่คือตำแหน่งปัจจุบันของคุณ'
-                        });
-                        map.Overlays.add(userMarker);
-                    });
+                            err => {
+                                console.warn(`Geolocation error: ${err.message}`);
+                            }
+                        );
+                    }
+                    
+                    // It's good practice to call resize one more time inside ready.
+                    map.resize();
+                    
+                    // Reset the flag so the map can be initialized again if needed.
+                    isMapInitializing = false;
                 }
-            }
-        });
-    }, 0); // A timeout of 0ms is sufficient to defer execution to the next event loop cycle.
+            });
+
+        } catch (error) {
+            console.error("Fatal error initializing Longdo Map:", error);
+            showMessageModal("เกิดข้อผิดพลาดร้ายแรงในการสร้างแผนที่");
+            isMapInitializing = false; // Reset the flag on error.
+        }
+
+    }, 100); // 100ms delay
 }
 
-
 function plotDataOnMap() {
-    if (!map) return;
+    if (!map) {
+        console.warn("plotDataOnMap called but map is not initialized.");
+        return;
+    }
 
+    // Clear all previous markers before adding new ones.
     map.Overlays.clear();
+    console.log(`Plotting ${allData.length} items on the map.`);
 
     allData.forEach(item => {
         const gps = item['GPS'] || item['GPSแปลง'];
         if (gps && String(gps).includes(',')) {
             const [lat, lon] = String(gps).split(',').map(s => parseFloat(s.trim()));
+            
             if (!isNaN(lat) && !isNaN(lon)) {
                 const name = String(item['ชื่อร้านค้า'] || item['ชื่อเกษตรกร'] || item['เกษตรกรเจ้าของแปลง'] || 'N/A');
                 
