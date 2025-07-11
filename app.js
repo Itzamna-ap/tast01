@@ -560,25 +560,30 @@ async function fetchData(force = false) {
         return;
     }
     
-    loadingText.textContent = 'LOADING.....';
-    loadingOverlay.classList.remove('hidden');
-    
     try {
+        loadingText.textContent = 'กำลังดึงข้อมูล...';
+        loadingOverlay.classList.remove('hidden');
+
         const response = await apiCall({ action: 'getData', user: currentUser }, null);
-        if(response.result === 'success' && Array.isArray(response.data)) {
+
+        if (response.result === 'success' && Array.isArray(response.data)) {
             allData = response.data;
-            renderDashboard();
-            const currentPage = document.querySelector('.page-content.active')?.id.replace('-page','');
-            if(currentPage === 'feed') {
-               renderFeedPage();
+            console.log(`Successfully fetched ${allData.length} items.`);
+            if (allData.length === 0) {
+                 const emptyFeedEl = document.getElementById('empty-feed');
+                 if(emptyFeedEl) {
+                    emptyFeedEl.textContent = 'ไม่พบข้อมูลลูกค้า';
+                    emptyFeedEl.classList.remove('hidden');
+                 }
             }
-        } else { 
-            allData = []; // Clear data on error
-            throw new Error(response.message || "Invalid data format from server"); 
+        } else {
+            allData = [];
+            throw new Error(response.message || "รูปแบบข้อมูลที่ได้รับจากเซิร์ฟเวอร์ไม่ถูกต้อง");
         }
     } catch (error) {
-        console.error('Error fetching data:', error);
-        allData = []; // Clear data on error
+        console.error('Error in fetchData:', error);
+        allData = [];
+        showMessageModal(`เกิดข้อผิดพลาด: ไม่สามารถโหลดข้อมูลลูกค้าได้\n\n(${error.message})`);
         const emptyFeedEl = document.getElementById('empty-feed');
         if(emptyFeedEl) {
             emptyFeedEl.textContent = 'ไม่สามารถโหลดข้อมูลได้';
@@ -586,6 +591,11 @@ async function fetchData(force = false) {
         }
     } finally {
         loadingOverlay.classList.add('hidden');
+        renderDashboard();
+        const currentPage = document.querySelector('.page-content.active')?.id.replace('-page','');
+        if (currentPage === 'feed') {
+            renderFeedPage();
+        }
     }
 }
 
@@ -599,9 +609,15 @@ async function initMap() {
     const mapContainer = document.getElementById('map');
 
     if (!allData || allData.length === 0) {
-        console.log("Map data (allData) is empty. Fetching data before initializing map...");
+        console.log("Map data is empty. Forcing a re-fetch...");
         await fetchData(true);
-        console.log("Data fetched. Proceeding with map initialization.");
+    }
+    
+    if (!allData || allData.length === 0) {
+        console.log("No data available to plot on the map after fetching.");
+        page.innerHTML = `<div class="flex items-center justify-center h-full text-center text-gray-500">ไม่มีข้อมูลตำแหน่งสำหรับแสดงบนแผนที่</div>`;
+        isMapInitializing = false;
+        return;
     }
 
     if (map) {
@@ -663,28 +679,10 @@ function plotDataOnMap() {
         return;
     }
     map.Overlays.clear();
-    console.log(`%cAttempting to plot ${allData.length} items on the map.`, 'color: blue; font-weight: bold;');
+    console.log(`%cAttempting to plot ${allData.length} items.`, 'color: blue; font-weight: bold;');
 
     let plottedCount = 0;
-    
-    // --- DEBUGGING: START ---
-    // ทดลองปักหมุดแบบตายตัว 1 อันที่อำเภอบางเลน เพื่อทดสอบว่าคำสั่ง Marker ทำงานได้หรือไม่
-    try {
-        const testLocation = { lon: 100.165, lat: 14.022 }; // พิกัดอำเภอบางเลน
-        const testMarker = new longdo.Marker(testLocation, {
-            title: 'หมุดทดสอบ',
-            detail: 'ถ้าเห็นหมุดนี้ แสดงว่าแผนที่ทำงานได้ปกติ'
-        });
-        map.Overlays.add(testMarker);
-        console.log('%cSuccessfully added a hardcoded test marker at Bang Len.', 'color: purple; font-weight: bold;');
-    } catch(e) {
-        console.error('%cFailed to add hardcoded test marker.', 'color: red; font-weight: bold;', e);
-    }
-    // --- DEBUGGING: END ---
-
-
-    allData.forEach((item, index) => {
-        // *** กลับไปใช้ชื่อคอลัมน์ที่ถูกต้อง ***
+    allData.forEach((item) => {
         const gps = item['GPS'] || item['GPSแปลง'];
         
         if (gps && typeof gps === 'string' && gps.includes(',')) {
@@ -717,7 +715,11 @@ function plotDataOnMap() {
             }
         }
     });
-    console.log(`%cFinished. Successfully created ${plottedCount} markers from data.`, 'color: blue; font-weight: bold;');
+    console.log(`%cFinished. Successfully created ${plottedCount} markers.`, 'color: green; font-weight: bold;');
+    
+    if (plottedCount === 0 && allData.length > 0) {
+        showMessageModal("ไม่พบข้อมูล GPS ที่ถูกต้องในข้อมูลลูกค้าชุดนี้");
+    }
 }
 
 
