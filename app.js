@@ -1,5 +1,5 @@
 // --- Global State and Element Selectors ---
-let currentUser = null, allData = [], map = null, doughnutChartInstance = null, isMapInitializing = false;
+let currentUser = null, allData = [], map = null, doughnutChartInstance = null;
 const loginView = document.getElementById('login-view');
 const mainAppView = document.getElementById('main-app-view');
 const formModal = document.getElementById('form-modal');
@@ -13,7 +13,7 @@ const loadingText = document.getElementById('loading-text');
 const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyWYuttyt5bFw3h7jzUhEaWBpowkLikqILd5kaL0V6b_jveMP1Tdpd1gPGqJmqexcLS1g/exec';
 
 // --- Core API and Authentication Functions ---
-async function apiCall(payload, loadingMessage = "LOADING.....") {
+async function apiCall(payload, loadingMessage = null) {
     if (loadingMessage) {
         loadingText.textContent = loadingMessage;
         loadingOverlay.classList.remove('hidden');
@@ -37,7 +37,7 @@ async function handleLogin(e) {
     submitButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
     submitButton.disabled = true;
     try {
-        const data = await apiCall({ action: 'login', username, password }, "LOADING.....");
+        const data = await apiCall({ action: 'login', username, password }, "กำลังเข้าสู่ระบบ...");
         if (data.result === 'success' && data.user) {
             currentUser = data.user;
             localStorage.setItem('currentUser', JSON.stringify(currentUser));
@@ -105,26 +105,12 @@ function renderDashboard() {
     const storeCount = allData.filter(d => d.formType === 'ร้านค้า').length;
     const farmerCount = allData.filter(d => d.formType === 'เกษตรกร').length;
     const trialCount = allData.filter(d => d.formType === 'แปลงทดลอง').length;
-    
     page.innerHTML = `
-        <div class="grid grid-cols-3 gap-4 mb-6">
-            <div class="bg-white p-4 rounded-lg shadow-sm text-center">
-                <p class="text-sm text-gray-500">ร้านค้า</p>
-                <p class="text-3xl font-bold text-blue-500">${storeCount}</p>
-            </div>
-            <div class="bg-white p-4 rounded-lg shadow-sm text-center">
-                <p class="text-sm text-gray-500">เกษตรกร</p>
-                <p class="text-3xl font-bold text-green-500">${farmerCount}</p>
-            </div>
-            <div class="bg-white p-4 rounded-lg shadow-sm text-center">
-                <p class="text-sm text-gray-500">แปลงทดลอง</p>
-                <p class="text-3xl font-bold text-purple-500">${trialCount}</p>
-            </div>
+        <div class="grid grid-cols-2 gap-4 mb-6">
+            <div class="bg-white p-4 rounded-lg shadow-sm text-center"><p class="text-sm text-gray-500">ร้านค้า</p><p class="text-3xl font-bold text-blue-500">${storeCount}</p></div>
+            <div class="bg-white p-4 rounded-lg shadow-sm text-center"><p class="text-sm text-gray-500">เกษตรกร</p><p class="text-3xl font-bold text-green-500">${farmerCount}</p></div>
         </div>
-        <div class="bg-white p-4 rounded-lg shadow-sm">
-            <h3 class="font-bold mb-2 text-center">สัดส่วนข้อมูล</h3>
-            <div class="max-w-xs mx-auto"><canvas id="doughnutChart"></canvas></div>
-        </div>`;
+        <div class="bg-white p-4 rounded-lg shadow-sm"><h3 class="font-bold mb-2 text-center">สัดส่วนข้อมูล</h3><div class="max-w-xs mx-auto"><canvas id="doughnutChart"></canvas></div></div>`;
     
     if (doughnutChartInstance) doughnutChartInstance.destroy();
     const doughnutCtx = document.getElementById('doughnutChart').getContext('2d');
@@ -196,18 +182,21 @@ function renderDataList(tabId) {
     });
 }
 
+// --- Detail Page Rendering with Image Gallery ---
 function renderDetailPage(data) {
     const container = document.getElementById('detail-page');
     let detailsHtml = '', linkedHtml = '', galleryHtml = '';
     const mainName = data['ชื่อร้านค้า'] || data['ชื่อเกษตรกร'] || data['เกษตรกรเจ้าของแปลง'] || 'รายละเอียด';
     
+    // Render main details
     for (const [key, value] of Object.entries(data)) {
         if (value && !['formType', 'rowId', 'sheetRow', 'images'].some(k => key.startsWith(k)) && !key.startsWith('creator')) {
             let displayValue;
+            // MODIFIED: Check for both 'GPS' and 'GPSแปลง'
             if ((key === 'GPS' || key === 'GPSแปลง') && String(value).includes(',')) {
                 const [lat, lon] = String(value).split(',').map(s => s.trim());
                 if (!isNaN(parseFloat(lat)) && !isNaN(parseFloat(lon))) {
-                    displayValue = `<a href="https://www.google.com/maps/dir/?api=1&destination=${lat},${lon}" target="_blank" rel="noopener noreferrer" class="text-blue-500 hover:underline font-bold">${value}</a>`;
+                    displayValue = `<a href="https://www.google.com/maps?q=${lat},${lon}" target="_blank" rel="noopener noreferrer" class="text-blue-500 hover:underline font-bold">${value}</a>`;
                 } else {
                     displayValue = value;
                 }
@@ -218,6 +207,7 @@ function renderDetailPage(data) {
         }
     }
 
+    // Render linked data
     if (data.formType === 'ร้านค้า') {
         const linkedFarmers = allData.filter(f => f.formType === 'เกษตรกร' && f['ร้านค้าในสังกัด'] === data['ชื่อร้านค้า']);
         if(linkedFarmers.length > 0) {
@@ -238,6 +228,7 @@ function renderDetailPage(data) {
         }
     }
     
+    // Render Image Gallery by Type
     if (data.images && data.images.length > 0) {
         galleryHtml += `<h3 class="text-lg font-bold mt-6 mb-2 border-t pt-4">แกลเลอรีรูปภาพ</h3>`;
         const imagesByType = data.images.reduce((acc, img) => {
@@ -363,7 +354,6 @@ function generateForm(type, data = {}) {
                     <div><label class="form-label">ชื่อเกษตรกร</label><input name="ชื่อเกษตรกร" class="form-input" required value="${safeVal('ชื่อเกษตรกร')}"></div>
                     <div><label class="form-label">ร้านค้าในสังกัด</label><select name="ร้านค้าในสังกัด" class="form-select"><option value="">-- ไม่ระบุ --</option>${storeOptions}</select></div>
                     <div><label class="form-label">เบอร์โทรเกษตรกร</label><input name="เบอร์โทรเกษตรกร" class="form-input" value="${safeVal('เบอร์โทรเกษตรกร')}"></div>
-                    <div class="md:col-span-2"><label class="form-label">GPS</label><div class="flex"><input name="GPS" id="gps-input" class="form-input rounded-r-none" value="${safeVal('GPS')}"><button type="button" onclick="getGeoLocation('gps-input')" class="bg-blue-500 text-white px-4 rounded-r-lg"><i class="fas fa-map-marker-alt"></i></button></div></div>
                     <div class="md:col-span-2"><label class="form-label">ที่อยู่เกษตรกร</label><textarea name="ที่อยู่เกษตรกร" class="form-textarea">${safeVal('ที่อยู่เกษตรกร')}</textarea></div>
                     <div><label class="form-label">เพศเกษตรกร</label><select name="เพศเกษตรกร" class="form-select"><option ${safeVal('เพศเกษตรกร') === 'ชาย' ? 'selected' : ''}>ชาย</option><option ${safeVal('เพศเกษตรกร') === 'หญิง' ? 'selected' : ''}>หญิง</option></select></div>
                     <div><label class="form-label">อายุเกษตรกร</label><input name="อายุเกษตรกร" type="number" class="form-input" value="${safeVal('อายุเกษตรกร')}"></div>
@@ -463,27 +453,22 @@ function getGeoLocation(inputElId) {
     const originalHtml = buttonEl.innerHTML;
     buttonEl.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
     buttonEl.disabled = true;
-    
-    loadingText.textContent = 'LOADING.....';
-    loadingOverlay.classList.remove('hidden');
-
+    showMessageModal('กำลังระบุตำแหน่ง...');
     if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(
             pos => {
                 inputEl.value = `${pos.coords.latitude.toFixed(6)}, ${pos.coords.longitude.toFixed(6)}`;
-                loadingOverlay.classList.add('hidden');
+                closeMessageModal();
                 buttonEl.innerHTML = originalHtml;
                 buttonEl.disabled = false;
             },
             err => {
-                loadingOverlay.classList.add('hidden');
                 showMessageModal(`เกิดข้อผิดพลาด: ${err.message}`);
                 buttonEl.innerHTML = originalHtml;
                 buttonEl.disabled = false;
             }
         );
     } else { 
-        loadingOverlay.classList.add('hidden');
         showMessageModal("เบราว์เซอร์ไม่รองรับ Geolocation");
         buttonEl.disabled = false;
     }
@@ -522,10 +507,11 @@ async function handleFormSubmit(e) {
     });
     
     if(fileReadPromises.length > 0) {
-        await apiCall(null, "LOADING.....");
+        loadingText.textContent = "กำลังเตรียมรูปภาพ...";
+        loadingOverlay.classList.remove('hidden');
+        imagesToUpload = await Promise.all(fileReadPromises);
+        loadingOverlay.classList.add('hidden');
     }
-    imagesToUpload = await Promise.all(fileReadPromises);
-
 
     const isEdit = data.rowId && data.rowId !== '';
     const payload = { 
@@ -536,7 +522,7 @@ async function handleFormSubmit(e) {
     };
 
     try {
-        const response = await apiCall(payload, "LOADING.....");
+        const response = await apiCall(payload, "กำลังบันทึกข้อมูลและรูปภาพ...");
         if (response.result === 'success') {
             showMessageModal(isEdit ? 'แก้ไขข้อมูลสำเร็จ!' : 'บันทึกข้อมูลสำเร็จ!');
             closeFormModal();
@@ -559,12 +545,13 @@ async function fetchData(force = false) {
         renderAllTabs();
         return;
     }
-    
-    loadingText.textContent = 'LOADING.....';
-    loadingOverlay.classList.remove('hidden');
-    
+    const emptyFeedEl = document.getElementById('empty-feed');
+    if(emptyFeedEl) {
+        emptyFeedEl.textContent = 'กำลังโหลดข้อมูล...';
+        emptyFeedEl.classList.remove('hidden');
+    }
     try {
-        const response = await apiCall({ action: 'getData', user: currentUser }, null);
+        const response = await apiCall({ action: 'getData', user: currentUser });
         if(response.result === 'success' && Array.isArray(response.data)) {
             allData = response.data;
             renderDashboard();
@@ -575,107 +562,41 @@ async function fetchData(force = false) {
         } else { throw new Error(response.message || "Invalid data format from server"); }
     } catch (error) {
         console.error('Error fetching data:', error);
-        const emptyFeedEl = document.getElementById('empty-feed');
         if(emptyFeedEl) {
             emptyFeedEl.textContent = 'ไม่สามารถโหลดข้อมูลได้';
-            emptyFeedEl.classList.remove('hidden');
         }
-    } finally {
-        loadingOverlay.classList.add('hidden');
     }
 }
 
-// --- Longdo Map Functions (NEW AND ROBUST IMPLEMENTATION) ---
 function initMap() {
-    if (isMapInitializing) return;
-    isMapInitializing = true;
-
     const page = document.getElementById('map-page');
-    // *** ส่วนที่แก้ไข: สร้าง div container ของแผนที่ด้วย JS ให้มีความสูงที่ถูกต้อง ***
     page.innerHTML = `<div id="map" class="h-full w-full rounded-lg shadow-md min-h-[calc(100vh-160px)]"></div>`;
-    const mapContainer = document.getElementById('map');
-
-    if (map) {
-        try { map.destroy(); } catch (e) { console.error("Error destroying map:", e); }
-        map = null;
+    if (map) { map.remove(); map = null; }
+    map = L.map('map').setView([13.7563, 100.5018], 6);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+    if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(pos => {
+            const coords = [pos.coords.latitude, pos.coords.longitude];
+            map.setView(coords, 13);
+            L.marker(coords, { icon: L.icon({ iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png', shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png', iconSize: [25, 41], iconAnchor: [12, 41] }), isCurrentUser: true }).addTo(map).bindPopup('<b>ตำแหน่งของคุณ</b>').openPopup();
+        });
     }
-
-    setTimeout(() => {
-        if (typeof longdo === 'undefined') {
-            showMessageModal('ไม่สามารถโหลด Longdo Map API ได้ กรุณาตรวจสอบการเชื่อมต่ออินเทอร์เน็ต และเช็คว่าใส่ API Key ในไฟล์ index.html ถูกต้อง');
-            isMapInitializing = false;
-            return;
-        }
-
-        if (!document.body.contains(mapContainer)) {
-            isMapInitializing = false;
-            return;
-        }
-
-        try {
-            map = new longdo.Map({
-                placeholder: mapContainer,
-                language: 'th',
-                ready: function() {
-                    plotDataOnMap();
-                    if (navigator.geolocation) {
-                        navigator.geolocation.getCurrentPosition(
-                            pos => {
-                                const userLocation = { lon: pos.coords.longitude, lat: pos.coords.latitude };
-                                map.location(userLocation, true);
-                                map.zoom(15, true);
-                                const userMarker = new longdo.Marker(userLocation, {
-                                    title: 'ตำแหน่งของคุณ',
-                                    icon: { url: 'https://map.longdo.com/mmmap/images/pin_mark.png' },
-                                    detail: 'นี่คือตำแหน่งปัจจุบันของคุณ'
-                                });
-                                map.Overlays.add(userMarker);
-                            },
-                            err => { console.warn(`Geolocation error: ${err.message}`); }
-                        );
-                    }
-                    map.resize();
-                    isMapInitializing = false;
-                }
-            });
-        } catch (error) {
-            console.error("Fatal error initializing Longdo Map:", error);
-            showMessageModal("เกิดข้อผิดพลาดร้ายแรงในการสร้างแผนที่");
-            isMapInitializing = false;
-        }
-    }, 100);
+    if (allData.length > 0) plotDataOnMap();
 }
 
 function plotDataOnMap() {
     if (!map) return;
-    map.Overlays.clear();
-
+    map.eachLayer(layer => { if (layer instanceof L.Marker && !layer.options.isCurrentUser) map.removeLayer(layer); });
     allData.forEach(item => {
+        // MODIFIED: Check for both 'GPS' and 'GPSแปลง'
         const gps = item['GPS'] || item['GPSแปลง'];
         if (gps && String(gps).includes(',')) {
             const [lat, lon] = String(gps).split(',').map(s => parseFloat(s.trim()));
             if (!isNaN(lat) && !isNaN(lon)) {
-                const name = String(item['ชื่อร้านค้า'] || item['ชื่อเกษตรกร'] || item['เกษตรกรเจ้าของแปลง'] || 'N/A');
-                let details = '';
-                if (item.formType === 'เกษตรกร' && item['ร้านค้าในสังกัด']) {
-                    details = `<div class="text-sm text-gray-600">สังกัด: ${item['ร้านค้าในสังกัด']}</div>`;
-                } else if (item.formType === 'แปลงทดลอง' && item['เกษตรกรเจ้าของแปลง']) {
-                    details = `<div class="text-sm text-gray-600">เจ้าของแปลง: ${item['เกษตรกรเจ้าของแปลง']}</div>`;
-                }
-                const navLink = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lon}`;
-                const popupContent = `<div class="p-1" style="font-family: sans-serif; max-width: 200px;">
-                                        <b class="text-base" style="font-size: 1rem; font-weight: bold;">${name}</b>
-                                        ${details}
-                                        <a href="${navLink}" target="_blank" class="text-blue-600 font-bold mt-2 inline-block" style="color: #2563eb; font-weight: bold; margin-top: 0.5rem; display: inline-block;">นำทาง (Google Maps)</a>
-                                      </div>`;
+                const name = item['ชื่อร้านค้า'] || item['ชื่อเกษตรกร'] || item['เกษตรกรเจ้าของแปลง'] || 'N/A';
                 const iconColor = { 'ร้านค้า': 'blue', 'เกษตรกร': 'green', 'แปลงทดลอง': 'violet' }[item.formType] || 'grey';
-                const iconUrl = `https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-${iconColor}.png`;
-                const marker = new longdo.Marker({ lon, lat }, {
-                    title: name,
-                    icon: { url: iconUrl, size: { width: 25, height: 41 }, offset: { x: 12, y: 41 } },
-                    popup: { html: popupContent }
-                });
-                map.Overlays.add(marker);
+                const markerIcon = new L.Icon({ iconUrl: `https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-${iconColor}.png`, shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png', iconSize: [25, 41], iconAnchor: [12, 41] });
+                L.marker([lat, lon], {icon: markerIcon}).addTo(map).bindPopup(`<b>${name}</b><br><a href="https://www.google.com/maps?q=${lat},${lon}" target="_blank" class="text-blue-600 font-bold">นำทาง</a>`);
             }
         }
     });
@@ -725,7 +646,7 @@ window.addEventListener('appinstalled', () => {
 // === PWA SERVICE WORKER REGISTRATION ===
 if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
-        navigator.serviceWorker.register('sw.js')
+        navigator.serviceWorker.register('./sw.js')
         .then(registration => {
             console.log('ServiceWorker registration successful with scope: ', registration.scope);
         })
