@@ -1,3 +1,4 @@
+// --- Global State and Element Selectors ---
 let currentUser = null, allData = [], map = null, doughnutChartInstance = null;
 const loginView = document.getElementById('login-view');
 const mainAppView = document.getElementById('main-app-view');
@@ -599,6 +600,14 @@ function initMap() {
         language: 'th',
     });
     
+    // --- ส่วนที่แก้ไข: บังคับให้แผนที่วาดตัวเองใหม่หลังจากแสดงผล ---
+    setTimeout(() => {
+        if (map) {
+            map.resize();
+        }
+    }, 10);
+    // --- สิ้นสุดส่วนที่แก้ไข ---
+
     plotDataOnMap();
 
     if (navigator.geolocation) {
