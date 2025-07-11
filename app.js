@@ -585,21 +585,34 @@ async function fetchData(force = false) {
     }
 }
 
-// --- Longdo Map Functions ---
+// --- Longdo Map Functions (REVISED) ---
 function initMap() {
     const page = document.getElementById('map-page');
     page.innerHTML = `<div id="map" class="h-full w-full rounded-lg shadow-md min-h-[calc(100vh-230px)]"></div>`;
+    const mapContainer = document.getElementById('map');
 
     if (typeof longdo === 'undefined') {
         showMessageModal('ไม่สามารถโหลด Longdo Map ได้ กรุณาตรวจสอบการเชื่อมต่ออินเทอร์เน็ตและการตั้งค่า API Key ในไฟล์ index.html');
         return;
     }
 
+    // --- การแก้ไข: ทำลาย instance ของแผนที่เก่า (ถ้ามี) เพื่อป้องกันข้อผิดพลาด ---
+    if (map) {
+        try {
+            map.destroy();
+        } catch (e) {
+            console.error("Error destroying map:", e);
+        }
+        map = null;
+    }
+
     map = new longdo.Map({
-        placeholder: document.getElementById('map'),
+        placeholder: mapContainer,
         language: 'th',
         ready: function() {
-            // This function is called when the map is ready.
+            // --- การแก้ไข: เรียก resize() ทันทีที่แผนที่พร้อม เพื่อให้แผนที่แสดงขนาดถูกต้อง ---
+            map.resize();
+            
             plotDataOnMap();
 
             if (navigator.geolocation) {
@@ -622,14 +635,13 @@ function initMap() {
             }
         }
     });
-    
-    // The resize must still happen after the page is visible.
-    // Let's increase the timeout to be safer.
+
+    // --- การแก้ไข: เพิ่ม delay และเรียก resize อีกครั้งเพื่อรองรับ CSS transition ที่อาจเกิดขึ้น ---
     setTimeout(() => {
         if (map) {
             map.resize();
         }
-    }, 100); 
+    }, 250);
 }
 
 function plotDataOnMap() {
