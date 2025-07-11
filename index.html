@@ -73,7 +73,12 @@
     
     <div id="form-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-30 flex items-center justify-center p-4"><div id="form-modal-container" class="form-modal-content bg-gray-50 rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col"></div></div>
     <div id="message-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center"><div class="bg-white p-6 rounded-lg shadow-xl text-center w-11/12 max-w-sm"><p id="modal-message" class="text-lg"></p><button onclick="closeMessageModal()" class="mt-4 bg-pink-500 text-white px-6 py-2 rounded-md w-full">ตกลง</button></div></div>
-    <div id="loading-overlay" class="hidden fixed inset-0 bg-black bg-opacity-60 z-50 flex flex-col items-center justify-center text-white"><i class="fas fa-spinner fa-spin text-4xl"></i><p id="loading-text" class="mt-4 text-lg">กำลังโหลดข้อมูล...</p></div>
+    
+    <!-- Loading Overlay Updated -->
+    <div id="loading-overlay" class="hidden fixed inset-0 bg-black bg-opacity-60 z-50 flex flex-col items-center justify-center text-white">
+        <i class="fas fa-hourglass-half fa-spin text-4xl"></i>
+        <p id="loading-text" class="mt-4 text-lg">LOADING....</p>
+    </div>
 
     <!-- Link to the external JavaScript file -->
     <script src="app.js" defer></script>
