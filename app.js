@@ -585,15 +585,21 @@ async function fetchData(force = false) {
     }
 }
 
-// --- Longdo Map Functions (NEW AND ROBUST IMPLEMENTATION) ---
-function initMap() {
+// --- Longdo Map Functions (Final Robust Version) ---
+async function initMap() { // Make function async
     if (isMapInitializing) return;
     isMapInitializing = true;
 
     const page = document.getElementById('map-page');
-    // *** ส่วนที่แก้ไข: สร้าง div container ของแผนที่ด้วย JS ให้มีความสูงที่ถูกต้อง ***
     page.innerHTML = `<div id="map" style="width: 100%; height: 100%; border-radius: 0.5rem; box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1);"></div>`;
     const mapContainer = document.getElementById('map');
+
+    // *** ส่วนที่แก้ไข: ตรวจสอบและดึงข้อมูลก่อนสร้างแผนที่ ***
+    if (!allData || allData.length === 0) {
+        console.log("Map data (allData) is empty. Fetching data before initializing map...");
+        await fetchData(true); // รอจนกว่าจะดึงข้อมูลเสร็จ
+        console.log("Data fetched. Proceeding with map initialization.");
+    }
 
     if (map) {
         try { map.destroy(); } catch (e) { console.error("Error destroying map:", e); }
@@ -617,7 +623,9 @@ function initMap() {
                 placeholder: mapContainer,
                 language: 'th',
                 ready: function() {
-                    plotDataOnMap();
+                    console.log("Longdo Map is ready. Now plotting markers.");
+                    plotDataOnMap(); // Now plot the data
+                    
                     if (navigator.geolocation) {
                         navigator.geolocation.getCurrentPosition(
                             pos => {
@@ -647,9 +655,14 @@ function initMap() {
 }
 
 function plotDataOnMap() {
-    if (!map) return;
+    if (!map) {
+        console.warn("plotDataOnMap called but map is not initialized.");
+        return;
+    }
     map.Overlays.clear();
+    console.log(`Attempting to plot ${allData.length} items on the map.`);
 
+    let plottedCount = 0;
     allData.forEach(item => {
         const gps = item['GPS'] || item['GPSแปลง'];
         if (gps && String(gps).includes(',')) {
@@ -676,9 +689,11 @@ function plotDataOnMap() {
                     popup: { html: popupContent }
                 });
                 map.Overlays.add(marker);
+                plottedCount++;
             }
         }
     });
+    console.log(`Successfully created ${plottedCount} markers.`);
 }
 
 function showMessageModal(message) {
