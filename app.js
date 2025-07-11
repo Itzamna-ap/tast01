@@ -207,7 +207,7 @@ function renderDetailPage(data) {
             if ((key === 'GPS' || key === 'GPSแปลง') && String(value).includes(',')) {
                 const [lat, lon] = String(value).split(',').map(s => s.trim());
                 if (!isNaN(parseFloat(lat)) && !isNaN(parseFloat(lon))) {
-                    displayValue = `<a href="https://www.google.com/maps?q=${lat},${lon}" target="_blank" rel="noopener noreferrer" class="text-blue-500 hover:underline font-bold">${value}</a>`;
+                    displayValue = `<a href="https://www.google.com/maps/dir/?api=1&destination=${lat},${lon}" target="_blank" rel="noopener noreferrer" class="text-blue-500 hover:underline font-bold">${value}</a>`;
                 } else {
                     displayValue = value;
                 }
@@ -598,35 +598,38 @@ function initMap() {
     map = new longdo.Map({
         placeholder: document.getElementById('map'),
         language: 'th',
+        ready: function() {
+            // This function is called when the map is ready.
+            plotDataOnMap();
+
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(pos => {
+                    const userLocation = {
+                        lon: pos.coords.longitude,
+                        lat: pos.coords.latitude
+                    };
+                    map.location(userLocation, true);
+                    map.zoom(15, true);
+                    const userMarker = new longdo.Marker(userLocation, {
+                        title: 'ตำแหน่งของคุณ',
+                        icon: {
+                            url: 'https://map.longdo.com/mmmap/images/pin_mark.png'
+                        },
+                        detail: 'นี่คือตำแหน่งปัจจุบันของคุณ'
+                    });
+                    map.Overlays.add(userMarker);
+                });
+            }
+        }
     });
     
-    // บังคับให้แผนที่วาดตัวเองใหม่หลังจากแสดงผล
+    // The resize must still happen after the page is visible.
+    // Let's increase the timeout to be safer.
     setTimeout(() => {
         if (map) {
             map.resize();
         }
-    }, 10);
-
-    plotDataOnMap();
-
-    if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(pos => {
-            const userLocation = {
-                lon: pos.coords.longitude,
-                lat: pos.coords.latitude
-            };
-            map.location(userLocation, true);
-            map.zoom(15, true);
-            const userMarker = new longdo.Marker(userLocation, {
-                title: 'ตำแหน่งของคุณ',
-                icon: {
-                    url: 'https://map.longdo.com/mmmap/images/pin_mark.png'
-                },
-                detail: 'นี่คือตำแหน่งปัจจุบันของคุณ'
-            });
-            map.Overlays.add(userMarker);
-        });
-    }
+    }, 100); 
 }
 
 function plotDataOnMap() {
@@ -648,11 +651,12 @@ function plotDataOnMap() {
                     details = `<div class="text-sm text-gray-600">เจ้าของแปลง: ${item['เกษตรกรเจ้าของแปลง']}</div>`;
                 }
 
-                const navLink = `https://map.longdo.com/?mode=d&lon=${lon}&lat=${lat}`;
+                // --- ส่วนที่แก้ไข: เปลี่ยนลิงก์นำทางเป็น Google Maps ---
+                const navLink = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lon}`;
                 const popupContent = `<div class="p-1" style="font-family: sans-serif; max-width: 200px;">
                                         <b class="text-base" style="font-size: 1rem; font-weight: bold;">${name}</b>
                                         ${details}
-                                        <a href="${navLink}" target="_blank" class="text-blue-600 font-bold mt-2 inline-block" style="color: #2563eb; font-weight: bold; margin-top: 0.5rem; display: inline-block;">นำทาง</a>
+                                        <a href="${navLink}" target="_blank" class="text-blue-600 font-bold mt-2 inline-block" style="color: #2563eb; font-weight: bold; margin-top: 0.5rem; display: inline-block;">นำทาง (Google Maps)</a>
                                       </div>`;
 
                 const iconColor = { 'ร้านค้า': 'blue', 'เกษตรกร': 'green', 'แปลงทดลอง': 'violet' }[item.formType] || 'grey';
@@ -662,9 +666,11 @@ function plotDataOnMap() {
                     { lon, lat },
                     {
                         title: name,
+                        // --- ส่วนที่แก้ไข: กำหนดขนาดและจุดยึดของไอคอน ---
                         icon: {
-                            url: iconUrl
-                            // --- ส่วนที่แก้ไข: นำ offset ออกไปเพื่อแก้ Error ---
+                            url: iconUrl,
+                            size: { width: 25, height: 41 },
+                            offset: { x: 12, y: 41 }
                         },
                         popup: {
                             html: popupContent
