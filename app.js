@@ -600,13 +600,12 @@ function initMap() {
         language: 'th',
     });
     
-    // --- ส่วนที่แก้ไข: บังคับให้แผนที่วาดตัวเองใหม่หลังจากแสดงผล ---
+    // บังคับให้แผนที่วาดตัวเองใหม่หลังจากแสดงผล
     setTimeout(() => {
         if (map) {
             map.resize();
         }
     }, 10);
-    // --- สิ้นสุดส่วนที่แก้ไข ---
 
     plotDataOnMap();
 
@@ -621,8 +620,7 @@ function initMap() {
             const userMarker = new longdo.Marker(userLocation, {
                 title: 'ตำแหน่งของคุณ',
                 icon: {
-                    url: 'https://map.longdo.com/mmmap/images/pin_mark.png',
-                    offset: { x: 12, y: 45 }
+                    url: 'https://map.longdo.com/mmmap/images/pin_mark.png'
                 },
                 detail: 'นี่คือตำแหน่งปัจจุบันของคุณ'
             });
@@ -641,7 +639,7 @@ function plotDataOnMap() {
         if (gps && String(gps).includes(',')) {
             const [lat, lon] = String(gps).split(',').map(s => parseFloat(s.trim()));
             if (!isNaN(lat) && !isNaN(lon)) {
-                const name = item['ชื่อร้านค้า'] || item['ชื่อเกษตรกร'] || item['เกษตรกรเจ้าของแปลง'] || 'N/A';
+                const name = String(item['ชื่อร้านค้า'] || item['ชื่อเกษตรกร'] || item['เกษตรกรเจ้าของแปลง'] || 'N/A');
                 
                 let details = '';
                 if (item.formType === 'เกษตรกร' && item['ร้านค้าในสังกัด']) {
@@ -665,8 +663,8 @@ function plotDataOnMap() {
                     {
                         title: name,
                         icon: {
-                            url: iconUrl,
-                            offset: { x: 12, y: 41 }
+                            url: iconUrl
+                            // --- ส่วนที่แก้ไข: นำ offset ออกไปเพื่อแก้ Error ---
                         },
                         popup: {
                             html: popupContent
