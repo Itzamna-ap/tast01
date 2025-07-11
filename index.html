@@ -7,33 +7,22 @@
     
     <!-- === PWA & THEMEING === -->
     <meta name="theme-color" content="#ec4899">
-    <link rel="manifest" href="manifest.json">
+    <link rel="manifest" href="./manifest.json">
     <!-- ======================= -->
 
-    <!-- === External Libraries & Fonts === -->
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    
-    <!-- === ส่วนที่สำคัญที่สุด: เรียกใช้ Longdo Map API พร้อมกับ Key ของคุณ === -->
-    <!-- หากยังแสดงเป็น NuMAP หมายความว่า Key นี้ถูกจำกัดโดเมนไว้ ต้องไปแก้ไขที่เว็บ Longdo Map -->
-    <script src="https://api.longdo.com/map/?key=48623784dd39bf86e5c5523a92a8111f"></script>
-    <!-- ================================================================= -->
-
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <style>
         body { font-family: 'Sarabun', sans-serif; background-color: #f4f5f7; }
         .view { display: none !important; }
         .view.active { display: flex !important; }
         #main-app-view.active { display: block !important; }
         .page-content, .tab-content { display: none; }
-        .page-content.active { display: block; }
-        
-        /* *** ส่วนที่แก้ไข: ทำให้หน้าแผนที่ใช้ความสูงเต็มพื้นที่ *** */
-        #map-page.active {
-            height: 100%;
-        }
-
+        .page-content.active, .tab-content.active { display: block; }
         .bottom-nav-item[data-active='true'] { color: #ec4899; }
         .tab-button[data-active='true'] { color: #ec4899; background-color: #fff; box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1); font-weight: 700; }
         .form-input, .form-select, .form-textarea { width: 100%; background-color: #fff; border: 1px solid #d1d5db; border-radius: 0.5rem; padding: 0.75rem; font-size: 1rem; transition: all 0.2s; }
@@ -48,8 +37,8 @@
         <div class="w-full max-w-sm p-8 space-y-6 bg-white rounded-2xl shadow-lg">
             <div class="text-center"><img src="https://img5.pic.in.th/file/secure-sv1/428709424_3685682595091856_2231537038448980245_n.th.jpg" class="w-24 h-24 mx-auto rounded-full shadow-md" alt="App Logo"><h1 class="text-4xl font-bold text-gray-800 mt-4">Advance Fertilizer</h1><p class="text-gray-500">กรุณาเข้าสู่ระบบเพื่อดำเนินการต่อ</p></div>
             <form id="login-form" class="space-y-4">
-                <div><label for="username" class="form-label text-left">ชื่อผู้ใช้</label><input id="username" name="username" type="text" class="form-input"></div>
-                <div><label for="password" class="form-label text-left">รหัสผ่าน</label><input id="password" name="password" type="password" class="form-input"></div>
+                <div><label for="username" class="form-label text-left">ชื่อผู้ใช้</label><input id="username" type="text" class="form-input"></div>
+                <div><label for="password" class="form-label text-left">รหัสผ่าน</label><input id="password" type="password" class="form-input"></div>
                 <button type="submit" class="w-full bg-pink-500 hover:bg-pink-600 text-white font-bold py-3 px-4 rounded-lg !mt-6 transform active:scale-95 transition-transform">เข้าสู่ระบบ</button>
                 <p id="login-error" class="text-red-500 text-center text-sm pt-2 h-6"></p>
             </form>
@@ -71,8 +60,7 @@
                 <div id="dashboard-page" class="page-content"></div>
                 <div id="feed-page" class="page-content"></div>
                 <div id="detail-page" class="page-content"></div>
-                <!-- JavaScript (app.js) จะสร้าง container ของแผนที่ขึ้นมาเองเมื่อจำเป็น -->
-                <div id="map-page" class="page-content"></div>
+                <div id="map-page" class="page-content"><div id="map" class="h-full w-full rounded-lg shadow-md min-h-[calc(100vh-160px)]"></div></div>
             </main>
 
             <nav class="bg-white border-t flex justify-around p-2 fixed bottom-0 w-full z-10">
@@ -85,13 +73,7 @@
     
     <div id="form-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-30 flex items-center justify-center p-4"><div id="form-modal-container" class="form-modal-content bg-gray-50 rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col"></div></div>
     <div id="message-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center"><div class="bg-white p-6 rounded-lg shadow-xl text-center w-11/12 max-w-sm"><p id="modal-message" class="text-lg"></p><button onclick="closeMessageModal()" class="mt-4 bg-pink-500 text-white px-6 py-2 rounded-md w-full">ตกลง</button></div></div>
-    
-    <div id="loading-overlay" class="fixed inset-0 bg-black bg-opacity-60 flex-col flex items-center justify-center z-50 hidden">
-        <div class="text-white text-center">
-            <i class="fas fa-hourglass-half fa-spin fa-3x mb-4"></i>
-            <p id="loading-text" class="text-xl font-bold tracking-widest">LOADING.....</p>
-        </div>
-    </div>
+    <div id="loading-overlay" class="hidden fixed inset-0 bg-black bg-opacity-60 z-50 flex flex-col items-center justify-center text-white"><i class="fas fa-spinner fa-spin text-4xl"></i><p id="loading-text" class="mt-4 text-lg">กำลังโหลดข้อมูล...</p></div>
 
     <!-- Link to the external JavaScript file -->
     <script src="app.js" defer></script>
