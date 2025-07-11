@@ -1,8 +1,3 @@
-
-// ---------------------------------------------------------------------------------
-// 1. GLOBAL STATE & CONSTANTS (สถานะส่วนกลางและค่าคงที่)
-// ---------------------------------------------------------------------------------
-
 let currentUser = null;
 let allData = [];
 let map = null;
@@ -218,7 +213,35 @@ function renderDashboard() {
     const storeCount = allData.filter(d => d.formType === 'ร้านค้า').length;
     const farmerCount = allData.filter(d => d.formType === 'เกษตรกร').length;
     const trialCount = allData.filter(d => d.formType === 'แปลงทดลอง').length;
-    
+    const totalCount = storeCount + farmerCount + trialCount;
+
+    // --- Calculate percentages ---
+    const storePercentage = totalCount > 0 ? ((storeCount / totalCount) * 100).toFixed(1) : 0;
+    const farmerPercentage = totalCount > 0 ? ((farmerCount / totalCount) * 100).toFixed(1) : 0;
+    const trialPercentage = totalCount > 0 ? ((trialCount / totalCount) * 100).toFixed(1) : 0;
+
+    // --- Get recent items ---
+    const recentItems = [...allData]
+        .sort((a, b) => new Date(b.createdDate) - new Date(a.createdDate))
+        .slice(0, 5);
+
+    const recentItemsHtml = recentItems.length > 0 ? recentItems.map(item => {
+        const name = item['ชื่อร้านค้า'] || item['ชื่อเกษตรกร'] || item['เกษตรกรเจ้าของแปลง'] || 'N/A';
+        const subtext = `เพิ่มเมื่อ: ${new Date(item.createdDate).toLocaleDateString('th-TH')}`;
+        const iconClass = { 'ร้านค้า': 'fa-store text-blue-500', 'เกษตรกร': 'fa-leaf text-green-500', 'แปลงทดลอง': 'fa-vial text-purple-500' }[item.formType] || 'fa-question-circle';
+        return `
+            <li class="flex items-center p-3 hover:bg-gray-50 rounded-lg cursor-pointer" onclick="showLinkedDetail('${item.rowId}')">
+                <i class="fas ${iconClass} text-xl w-8 text-center mr-3"></i>
+                <div class="flex-grow overflow-hidden">
+                    <p class="font-semibold text-gray-800 truncate">${name}</p>
+                    <p class="text-sm text-gray-500">${subtext}</p>
+                </div>
+                <i class="fas fa-chevron-right text-gray-400"></i>
+            </li>
+        `;
+    }).join('') : '<p class="text-center text-gray-500 py-4">ไม่มีกิจกรรมล่าสุด</p>';
+
+    // --- Build the full page HTML ---
     page.innerHTML = `
         <div class="grid grid-cols-3 gap-4 mb-6">
             <div class="bg-white p-4 rounded-lg shadow-sm text-center"><p class="text-sm text-gray-500">ร้านค้า</p><p class="text-3xl font-bold text-blue-500">${storeCount}</p></div>
@@ -228,16 +251,59 @@ function renderDashboard() {
         <div class="bg-white p-4 rounded-lg shadow-sm">
             <h3 class="font-bold mb-2 text-center">สัดส่วนข้อมูล</h3>
             <div class="max-w-xs mx-auto"><canvas id="doughnutChart"></canvas></div>
+            
+            <div class="mt-6 pt-4 border-t border-gray-200">
+                <ul class="space-y-2 text-sm text-gray-700">
+                    <li class="flex justify-between items-center p-2 rounded-md">
+                        <span><i class="fas fa-circle text-blue-500 mr-2"></i>ร้านค้า</span>
+                        <span class="font-mono font-semibold">${storeCount} <span class="text-gray-500">(${storePercentage}%)</span></span>
+                    </li>
+                    <li class="flex justify-between items-center p-2 rounded-md">
+                        <span><i class="fas fa-circle text-green-500 mr-2"></i>เกษตรกร</span>
+                        <span class="font-mono font-semibold">${farmerCount} <span class="text-gray-500">(${farmerPercentage}%)</span></span>
+                    </li>
+                    <li class="flex justify-between items-center p-2 rounded-md">
+                        <span><i class="fas fa-circle text-purple-500 mr-2"></i>แปลงทดลอง</span>
+                        <span class="font-mono font-semibold">${trialCount} <span class="text-gray-500">(${trialPercentage}%)</span></span>
+                    </li>
+                </ul>
+                <div class="flex justify-between items-center font-bold border-t pt-2 mt-2 text-base">
+                    <span>รวมทั้งหมด</span>
+                    <span class="font-mono">${totalCount}</span>
+                </div>
+            </div>
+        </div>
+        <div class="bg-white p-4 rounded-lg shadow-sm mt-6">
+            <h3 class="font-bold mb-2 text-gray-800">กิจกรรมล่าสุด</h3>
+            <ul class="space-y-1">
+                ${recentItemsHtml}
+            </ul>
         </div>`;
     
+    // --- Re-initialize the doughnut chart ---
     if (doughnutChartInstance) doughnutChartInstance.destroy();
+    
     const doughnutCtx = document.getElementById('doughnutChart').getContext('2d');
     doughnutChartInstance = new Chart(doughnutCtx, { 
         type: 'doughnut', 
         data: { 
             labels: ['ร้านค้า', 'เกษตรกร', 'แปลงทดลอง'], 
-            datasets: [{ data: [storeCount, farmerCount, trialCount], backgroundColor: ['#3b82f6', '#22c55e', '#a855f7'], hoverOffset: 4 }] 
-        } 
+            datasets: [{ 
+                data: [storeCount, farmerCount, trialCount], 
+                backgroundColor: ['#3b82f6', '#22c55e', '#a855f7'],
+                borderColor: '#ffffff',
+                borderWidth: 2,
+                hoverOffset: 4 
+            }] 
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: {
+                    display: false 
+                }
+            }
+        }
     });
 }
 
@@ -248,7 +314,7 @@ function renderFeedPage() {
         <div class="flex justify-between items-center mb-4"><h1 class="text-2xl font-bold text-gray-800">ข้อมูลลูกค้า</h1><button onclick="showAddFormSelection()" class="bg-pink-500 hover:bg-pink-600 text-white font-bold py-2 px-4 rounded-lg flex items-center space-x-2"><i class="fas fa-plus"></i><span>เพิ่ม</span></button></div>
         <div class="p-1 bg-gray-200 rounded-lg flex space-x-1 mb-4"><button onclick="showTab('stores')" class="tab-button w-1/3 py-2 rounded-md" data-active="true">ร้านค้า</button><button onclick="showTab('farmers')" class="tab-button w-1/3 py-2 rounded-md">เกษตรกร</button><button onclick="showTab('trials')" class="tab-button w-1/3 py-2 rounded-md">แปลงทดลอง</button></div>
         <div class="relative mb-4"><input id="search-input" type="text" placeholder="ค้นหาด้วยชื่อ..." class="form-input pl-10"><i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"></i></div>
-        <div id="feed-container">
+        <div id="feed-container" class="min-h-[40vh]">
             <div id="stores-tab" class="tab-content active space-y-3"></div>
             <div id="farmers-tab" class="tab-content space-y-3"></div>
             <div id="trials-tab" class="tab-content space-y-3"></div>
@@ -386,7 +452,6 @@ function initMap() {
     map = L.map('map').setView([13.7563, 100.5018], 6);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
-    // ** FIX: Reverted to a more robust horizontal flex layout for the legend **
     const legendContainer = document.getElementById('map-legend');
     const legendItem = (icon, text) => `
         <div class="flex flex-col items-center justify-center">
@@ -439,7 +504,6 @@ function plotDataOnMap() {
                 if (item.formType === 'แปลงทดลอง' && item['เกษตรกรเจ้าของแปลง']) popupContent += `<br>เจ้าของแปลง: ${item['เกษตรกรเจ้าของแปลง']}`;
                 popupContent += `<br><a href="https://www.google.com/maps?q=${lat},${lon}" target="_blank" class="text-blue-600 font-bold">นำทาง</a>`;
                 
-                // ** FIX: Select pre-defined icon **
                 let icon;
                 switch (item.formType) {
                     case 'ร้านค้า': icon = storeIcon; break;
