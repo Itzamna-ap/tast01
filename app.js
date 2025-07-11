@@ -101,13 +101,7 @@ function showPage(pageName, detailData = null) {
 }
 
 function renderDashboard() {
-    // ** FIX: Ensure map object is destroyed and its container is cleared **
-    if (map) {
-        map.remove();
-        map = null;
-    }
-    document.getElementById('map-page').innerHTML = ''; 
-
+    // ** FIX: Removed map clearing logic to prevent map from disappearing **
     const page = document.getElementById('dashboard-page');
     const storeCount = allData.filter(d => d.formType === 'ร้านค้า').length;
     const farmerCount = allData.filter(d => d.formType === 'เกษตรกร').length;
@@ -151,13 +145,7 @@ function renderDashboard() {
 }
 
 function renderFeedPage() {
-    // ** FIX: Ensure map object is destroyed and its container is cleared **
-    if (map) {
-        map.remove();
-        map = null;
-    }
-    document.getElementById('map-page').innerHTML = '';
-
+    // ** FIX: Removed map clearing logic to prevent map from disappearing **
     const page = document.getElementById('feed-page');
     page.innerHTML = `
         <div class="flex justify-between items-center mb-4"><h1 class="text-2xl font-bold text-gray-800">ข้อมูลลูกค้า</h1><button onclick="showAddFormSelection()" class="bg-pink-500 hover:bg-pink-600 text-white font-bold py-2 px-4 rounded-lg flex items-center space-x-2"><i class="fas fa-plus"></i><span>เพิ่ม</span></button></div>
@@ -390,6 +378,8 @@ function generateForm(type, data = {}) {
                     <div><label class="form-label">ร้านค้าในสังกัด</label><select name="ร้านค้าในสังกัด" class="form-select"><option value="">-- ไม่ระบุ --</option>${storeOptions}</select></div>
                     <div><label class="form-label">เบอร์โทรเกษตรกร</label><input name="เบอร์โทรเกษตรกร" class="form-input" value="${safeVal('เบอร์โทรเกษตรกร')}"></div>
                     <div class="md:col-span-2"><label class="form-label">ที่อยู่เกษตรกร</label><textarea name="ที่อยู่เกษตรกร" class="form-textarea">${safeVal('ที่อยู่เกษตรกร')}</textarea></div>
+                    <!-- ** FIX: Added GPS field for farmer form ** -->
+                    <div class="md:col-span-2"><label class="form-label">GPS</label><div class="flex"><input name="GPS" id="gps-input" class="form-input rounded-r-none" value="${safeVal('GPS')}"><button type="button" onclick="getGeoLocation('gps-input')" class="bg-blue-500 text-white px-4 rounded-r-lg"><i class="fas fa-map-marker-alt"></i></button></div></div>
                     <div><label class="form-label">เพศเกษตรกร</label><select name="เพศเกษตรกร" class="form-select"><option ${safeVal('เพศเกษตรกร') === 'ชาย' ? 'selected' : ''}>ชาย</option><option ${safeVal('เพศเกษตรกร') === 'หญิง' ? 'selected' : ''}>หญิง</option></select></div>
                     <div><label class="form-label">อายุเกษตรกร</label><input name="อายุเกษตรกร" type="number" class="form-input" value="${safeVal('อายุเกษตรกร')}"></div>
                     <div><label class="form-label">ปลูกอะไร</label><input name="ปลูกอะไร" class="form-input" value="${safeVal('ปลูกอะไร')}"></div>
@@ -601,10 +591,10 @@ async function fetchData(force = false) {
 
 function initMap() {
     const page = document.getElementById('map-page');
-    // Create containers for the map and the legend
+    // ** FIX: Adjusted map height and improved legend styling **
     page.innerHTML = `
-        <div id="map" class="flex-grow h-full w-full rounded-lg shadow-md"></div>
-        <div id="map-legend" class="flex-shrink-0 bg-white p-3 mt-4 rounded-lg shadow-md"></div>
+        <div id="map" style="height: 65vh;" class="w-full rounded-lg shadow-md"></div>
+        <div id="map-legend" class="bg-white p-4 mt-4 rounded-lg shadow-md"></div>
     `;
     
     if (map) { 
@@ -615,22 +605,22 @@ function initMap() {
     map = L.map('map').setView([13.7563, 100.5018], 6);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
-    // Render the map legend
+    // Render the map legend with improved layout
     const legendContainer = document.getElementById('map-legend');
     legendContainer.innerHTML = `
-        <h4 class="font-bold text-center mb-2">คำอธิบายสัญลักษณ์</h4>
-        <div class="flex justify-around items-center text-sm">
-            <div class="flex items-center">
-                <img src="https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png" class="h-6 mr-1">
-                <span>ร้านค้า</span>
+        <h4 class="font-bold text-lg text-center mb-3">คำอธิบายสัญลักษณ์</h4>
+        <div class="grid grid-cols-3 gap-2 text-center text-sm">
+            <div class="flex flex-col items-center p-2">
+                <img src="https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png" class="h-8">
+                <span class="mt-1 font-medium text-gray-700">ร้านค้า</span>
             </div>
-            <div class="flex items-center">
-                <img src="https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png" class="h-6 mr-1">
-                <span>เกษตรกร</span>
+            <div class="flex flex-col items-center p-2">
+                <img src="https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png" class="h-8">
+                <span class="mt-1 font-medium text-gray-700">เกษตรกร</span>
             </div>
-            <div class="flex items-center">
-                <img src="https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-violet.png" class="h-6 mr-1">
-                <span>แปลงทดลอง</span>
+            <div class="flex flex-col items-center p-2">
+                <img src="https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-violet.png" class="h-8">
+                <span class="mt-1 font-medium text-gray-700">แปลงทดลอง</span>
             </div>
         </div>
     `;
