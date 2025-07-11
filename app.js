@@ -586,75 +586,43 @@ async function fetchData(force = false) {
 }
 
 // --- Longdo Map Functions (NEW AND ROBUST IMPLEMENTATION) ---
-// This new implementation is designed to be more resilient to timing issues
-// common in single-page applications by ensuring the map container is fully
-// rendered before the map is initialized.
-
 function initMap() {
-    // Prevent multiple initializations if the user clicks the tab quickly.
-    if (isMapInitializing) {
-        return;
-    }
+    if (isMapInitializing) return;
     isMapInitializing = true;
 
     const page = document.getElementById('map-page');
-    // Always start with a clean container.
-    page.innerHTML = `<div id="map" class="h-full w-full rounded-lg shadow-md min-h-[calc(100vh-230px)]"></div>`;
+    // *** ส่วนที่แก้ไข: สร้าง div container ของแผนที่ด้วย JS ให้มีความสูงที่ถูกต้อง ***
+    page.innerHTML = `<div id="map" style="width: 100%; height: 100%; border-radius: 0.5rem; box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1);"></div>`;
     const mapContainer = document.getElementById('map');
 
-    // Safely destroy any previous map instance.
     if (map) {
-        try {
-            map.destroy();
-        } catch (e) {
-            console.error("Error destroying previous map instance:", e);
-        }
+        try { map.destroy(); } catch (e) { console.error("Error destroying map:", e); }
         map = null;
     }
 
-    // A short delay is crucial. It gives the browser time to render the #map
-    // container with its correct dimensions, especially when CSS transitions are used
-    // for showing the page. 100ms is a safe value.
     setTimeout(() => {
-        // Double-check if the map library is loaded.
         if (typeof longdo === 'undefined') {
             showMessageModal('ไม่สามารถโหลด Longdo Map API ได้ กรุณาตรวจสอบการเชื่อมต่ออินเทอร์เน็ต และเช็คว่าใส่ API Key ในไฟล์ index.html ถูกต้อง');
-            isMapInitializing = false; // Reset the flag
+            isMapInitializing = false;
             return;
         }
 
-        // Verify the container is still in the document. The user might have navigated away.
         if (!document.body.contains(mapContainer)) {
-            console.log("Map container is no longer in the DOM. Aborting map initialization.");
-            isMapInitializing = false; // Reset the flag
+            isMapInitializing = false;
             return;
         }
 
         try {
-            // Initialize the map.
-            // !!! IMPORTANT / ข้อควรจำ !!!
-            // The API key '23039d095f853aed32d624b72c57eab4' should be placed
-            // in the <script> tag in your index.html file, like this:
-            // <script src="https://api.longdo.com/map/?key=23039d095f853aed32d624b72c57eab4"></script>
             map = new longdo.Map({
                 placeholder: mapContainer,
                 language: 'th',
                 ready: function() {
-                    // This function is called when the map is fully loaded and ready.
-                    console.log("Longdo Map is ready.");
-                    
-                    // Plot data points first. This will clear any existing overlays.
                     plotDataOnMap();
-
-                    // Now, add the user's location marker so it's not cleared.
                     if (navigator.geolocation) {
                         navigator.geolocation.getCurrentPosition(
                             pos => {
-                                const userLocation = {
-                                    lon: pos.coords.longitude,
-                                    lat: pos.coords.latitude
-                                };
-                                map.location(userLocation, true); // Center the map
+                                const userLocation = { lon: pos.coords.longitude, lat: pos.coords.latitude };
+                                map.location(userLocation, true);
                                 map.zoom(15, true);
                                 const userMarker = new longdo.Marker(userLocation, {
                                     title: 'ตำแหน่งของคุณ',
@@ -663,84 +631,55 @@ function initMap() {
                                 });
                                 map.Overlays.add(userMarker);
                             },
-                            err => {
-                                console.warn(`Geolocation error: ${err.message}`);
-                            }
+                            err => { console.warn(`Geolocation error: ${err.message}`); }
                         );
                     }
-                    
-                    // It's good practice to call resize one more time inside ready.
                     map.resize();
-                    
-                    // Reset the flag so the map can be initialized again if needed.
                     isMapInitializing = false;
                 }
             });
-
         } catch (error) {
             console.error("Fatal error initializing Longdo Map:", error);
             showMessageModal("เกิดข้อผิดพลาดร้ายแรงในการสร้างแผนที่");
-            isMapInitializing = false; // Reset the flag on error.
+            isMapInitializing = false;
         }
-
-    }, 100); // 100ms delay
+    }, 100);
 }
 
 function plotDataOnMap() {
-    if (!map) {
-        console.warn("plotDataOnMap called but map is not initialized.");
-        return;
-    }
-
-    // Clear all previous markers before adding new ones.
+    if (!map) return;
     map.Overlays.clear();
-    console.log(`Plotting ${allData.length} items on the map.`);
 
     allData.forEach(item => {
         const gps = item['GPS'] || item['GPSแปลง'];
         if (gps && String(gps).includes(',')) {
             const [lat, lon] = String(gps).split(',').map(s => parseFloat(s.trim()));
-            
             if (!isNaN(lat) && !isNaN(lon)) {
                 const name = String(item['ชื่อร้านค้า'] || item['ชื่อเกษตรกร'] || item['เกษตรกรเจ้าของแปลง'] || 'N/A');
-                
                 let details = '';
                 if (item.formType === 'เกษตรกร' && item['ร้านค้าในสังกัด']) {
                     details = `<div class="text-sm text-gray-600">สังกัด: ${item['ร้านค้าในสังกัด']}</div>`;
                 } else if (item.formType === 'แปลงทดลอง' && item['เกษตรกรเจ้าของแปลง']) {
                     details = `<div class="text-sm text-gray-600">เจ้าของแปลง: ${item['เกษตรกรเจ้าของแปลง']}</div>`;
                 }
-
                 const navLink = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lon}`;
                 const popupContent = `<div class="p-1" style="font-family: sans-serif; max-width: 200px;">
                                         <b class="text-base" style="font-size: 1rem; font-weight: bold;">${name}</b>
                                         ${details}
                                         <a href="${navLink}" target="_blank" class="text-blue-600 font-bold mt-2 inline-block" style="color: #2563eb; font-weight: bold; margin-top: 0.5rem; display: inline-block;">นำทาง (Google Maps)</a>
                                       </div>`;
-
                 const iconColor = { 'ร้านค้า': 'blue', 'เกษตรกร': 'green', 'แปลงทดลอง': 'violet' }[item.formType] || 'grey';
                 const iconUrl = `https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-${iconColor}.png`;
-
-                const marker = new longdo.Marker(
-                    { lon, lat },
-                    {
-                        title: name,
-                        icon: {
-                            url: iconUrl,
-                            size: { width: 25, height: 41 },
-                            offset: { x: 12, y: 41 }
-                        },
-                        popup: {
-                            html: popupContent
-                        }
-                    }
-                );
+                const marker = new longdo.Marker({ lon, lat }, {
+                    title: name,
+                    icon: { url: iconUrl, size: { width: 25, height: 41 }, offset: { x: 12, y: 41 } },
+                    popup: { html: popupContent }
+                });
                 map.Overlays.add(marker);
             }
         }
     });
 }
-
 
 function showMessageModal(message) {
     const modal = document.getElementById('message-modal');
@@ -786,7 +725,7 @@ window.addEventListener('appinstalled', () => {
 // === PWA SERVICE WORKER REGISTRATION ===
 if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./sw.js')
+        navigator.serviceWorker.register('sw.js')
         .then(registration => {
             console.log('ServiceWorker registration successful with scope: ', registration.scope);
         })
