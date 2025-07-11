@@ -13,9 +13,8 @@ const loadingText = document.getElementById('loading-text');
 const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyWYuttyt5bFw3h7jzUhEaWBpowkLikqILd5kaL0V6b_jveMP1Tdpd1gPGqJmqexcLS1g/exec';
 
 // --- Core API and Authentication Functions ---
-async function apiCall(payload, loadingMessage = null) {
-    if (loadingMessage) {
-        loadingText.textContent = loadingMessage;
+async function apiCall(payload, showLoading = false) {
+    if (showLoading) {
         loadingOverlay.classList.remove('hidden');
     }
     try {
@@ -23,7 +22,7 @@ async function apiCall(payload, loadingMessage = null) {
         if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
         return await response.json();
     } finally {
-        if (loadingMessage) { loadingOverlay.classList.add('hidden'); }
+        if (showLoading) { loadingOverlay.classList.add('hidden'); }
     }
 }
 
@@ -36,8 +35,9 @@ async function handleLogin(e) {
     const submitButton = e.target.querySelector('button');
     submitButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
     submitButton.disabled = true;
+
     try {
-        const data = await apiCall({ action: 'login', username, password }, "กำลังเข้าสู่ระบบ...");
+        const data = await apiCall({ action: 'login', username, password }, true);
         if (data.result === 'success' && data.user) {
             currentUser = data.user;
             localStorage.setItem('currentUser', JSON.stringify(currentUser));
@@ -100,21 +100,51 @@ function showPage(pageName, detailData = null) {
     if (pageName === 'map') initMap();
 }
 
+/**
+ * Renders the dashboard with store, farmer, AND trial plot counts.
+ */
 function renderDashboard() {
     const page = document.getElementById('dashboard-page');
     const storeCount = allData.filter(d => d.formType === 'ร้านค้า').length;
     const farmerCount = allData.filter(d => d.formType === 'เกษตรกร').length;
     const trialCount = allData.filter(d => d.formType === 'แปลงทดลอง').length;
+    
+    // Updated to grid-cols-3 and added the third card for Trial Plots
     page.innerHTML = `
-        <div class="grid grid-cols-2 gap-4 mb-6">
-            <div class="bg-white p-4 rounded-lg shadow-sm text-center"><p class="text-sm text-gray-500">ร้านค้า</p><p class="text-3xl font-bold text-blue-500">${storeCount}</p></div>
-            <div class="bg-white p-4 rounded-lg shadow-sm text-center"><p class="text-sm text-gray-500">เกษตรกร</p><p class="text-3xl font-bold text-green-500">${farmerCount}</p></div>
+        <div class="grid grid-cols-3 gap-4 mb-6">
+            <div class="bg-white p-4 rounded-lg shadow-sm text-center">
+                <p class="text-sm text-gray-500">ร้านค้า</p>
+                <p class="text-3xl font-bold text-blue-500">${storeCount}</p>
+            </div>
+            <div class="bg-white p-4 rounded-lg shadow-sm text-center">
+                <p class="text-sm text-gray-500">เกษตรกร</p>
+                <p class="text-3xl font-bold text-green-500">${farmerCount}</p>
+            </div>
+            <div class="bg-white p-4 rounded-lg shadow-sm text-center">
+                <p class="text-sm text-gray-500">แปลงทดลอง</p>
+                <p class="text-3xl font-bold text-purple-500">${trialCount}</p>
+            </div>
         </div>
-        <div class="bg-white p-4 rounded-lg shadow-sm"><h3 class="font-bold mb-2 text-center">สัดส่วนข้อมูล</h3><div class="max-w-xs mx-auto"><canvas id="doughnutChart"></canvas></div></div>`;
+        <div class="bg-white p-4 rounded-lg shadow-sm">
+            <h3 class="font-bold mb-2 text-center">สัดส่วนข้อมูล</h3>
+            <div class="max-w-xs mx-auto">
+                <canvas id="doughnutChart"></canvas>
+            </div>
+        </div>`;
     
     if (doughnutChartInstance) doughnutChartInstance.destroy();
     const doughnutCtx = document.getElementById('doughnutChart').getContext('2d');
-    doughnutChartInstance = new Chart(doughnutCtx, { type: 'doughnut', data: { labels: ['ร้านค้า', 'เกษตรกร', 'แปลงทดลอง'], datasets: [{ data: [storeCount, farmerCount, trialCount], backgroundColor: ['#3b82f6', '#22c55e', '#a855f7'], hoverOffset: 4 }] } });
+    doughnutChartInstance = new Chart(doughnutCtx, { 
+        type: 'doughnut', 
+        data: { 
+            labels: ['ร้านค้า', 'เกษตรกร', 'แปลงทดลอง'], 
+            datasets: [{ 
+                data: [storeCount, farmerCount, trialCount], 
+                backgroundColor: ['#3b82f6', '#22c55e', '#a855f7'], 
+                hoverOffset: 4 
+            }] 
+        } 
+    });
 }
 
 function renderFeedPage() {
@@ -182,17 +212,14 @@ function renderDataList(tabId) {
     });
 }
 
-// --- Detail Page Rendering with Image Gallery ---
 function renderDetailPage(data) {
     const container = document.getElementById('detail-page');
     let detailsHtml = '', linkedHtml = '', galleryHtml = '';
     const mainName = data['ชื่อร้านค้า'] || data['ชื่อเกษตรกร'] || data['เกษตรกรเจ้าของแปลง'] || 'รายละเอียด';
     
-    // Render main details
     for (const [key, value] of Object.entries(data)) {
         if (value && !['formType', 'rowId', 'sheetRow', 'images'].some(k => key.startsWith(k)) && !key.startsWith('creator')) {
             let displayValue;
-            // MODIFIED: Check for both 'GPS' and 'GPSแปลง'
             if ((key === 'GPS' || key === 'GPSแปลง') && String(value).includes(',')) {
                 const [lat, lon] = String(value).split(',').map(s => s.trim());
                 if (!isNaN(parseFloat(lat)) && !isNaN(parseFloat(lon))) {
@@ -207,7 +234,6 @@ function renderDetailPage(data) {
         }
     }
 
-    // Render linked data
     if (data.formType === 'ร้านค้า') {
         const linkedFarmers = allData.filter(f => f.formType === 'เกษตรกร' && f['ร้านค้าในสังกัด'] === data['ชื่อร้านค้า']);
         if(linkedFarmers.length > 0) {
@@ -228,7 +254,6 @@ function renderDetailPage(data) {
         }
     }
     
-    // Render Image Gallery by Type
     if (data.images && data.images.length > 0) {
         galleryHtml += `<h3 class="text-lg font-bold mt-6 mb-2 border-t pt-4">แกลเลอรีรูปภาพ</h3>`;
         const imagesByType = data.images.reduce((acc, img) => {
@@ -260,7 +285,6 @@ function renderDetailPage(data) {
     </div>`;
 }
 
-// --- Form Generation and Handling ---
 function handleEditClick(rowId) {
     const data = allData.find(item => item.rowId === rowId);
     if (!data) {
@@ -293,6 +317,7 @@ function showAddFormSelection() {
             <button onclick="closeFormModal()" class="mt-8 text-gray-500">ยกเลิก</button>
         </div>`;
 }
+
 function closeFormModal() { formModal.classList.add('hidden'); }
 
 function generateForm(type, data = {}) {
@@ -507,22 +532,23 @@ async function handleFormSubmit(e) {
     });
     
     if(fileReadPromises.length > 0) {
-        loadingText.textContent = "กำลังเตรียมรูปภาพ...";
-        loadingOverlay.classList.remove('hidden');
-        imagesToUpload = await Promise.all(fileReadPromises);
-        loadingOverlay.classList.add('hidden');
+        await apiCall(null, true); // Show loading
     }
 
-    const isEdit = data.rowId && data.rowId !== '';
-    const payload = { 
-        action: isEdit ? 'updateData' : 'saveData', 
-        payload: data, 
-        user: currentUser,
-        images: imagesToUpload
-    };
-
     try {
-        const response = await apiCall(payload, "กำลังบันทึกข้อมูลและรูปภาพ...");
+        if(fileReadPromises.length > 0) {
+            imagesToUpload = await Promise.all(fileReadPromises);
+        }
+
+        const isEdit = data.rowId && data.rowId !== '';
+        const payload = { 
+            action: isEdit ? 'updateData' : 'saveData', 
+            payload: data, 
+            user: currentUser,
+            images: imagesToUpload
+        };
+
+        const response = await apiCall(payload, true);
         if (response.result === 'success') {
             showMessageModal(isEdit ? 'แก้ไขข้อมูลสำเร็จ!' : 'บันทึกข้อมูลสำเร็จ!');
             closeFormModal();
@@ -534,6 +560,7 @@ async function handleFormSubmit(e) {
         console.error("Submit Error:", error);
         showMessageModal(`เกิดข้อผิดพลาดในการบันทึก: ${error.message}`);
     } finally {
+        loadingOverlay.classList.add('hidden');
         submitButton.innerHTML = isEdit ? 'บันทึกการแก้ไข' : 'เพิ่มข้อมูล';
         submitButton.disabled = false;
     }
@@ -545,13 +572,9 @@ async function fetchData(force = false) {
         renderAllTabs();
         return;
     }
-    const emptyFeedEl = document.getElementById('empty-feed');
-    if(emptyFeedEl) {
-        emptyFeedEl.textContent = 'กำลังโหลดข้อมูล...';
-        emptyFeedEl.classList.remove('hidden');
-    }
+    
     try {
-        const response = await apiCall({ action: 'getData', user: currentUser });
+        const response = await apiCall({ action: 'getData', user: currentUser }, true);
         if(response.result === 'success' && Array.isArray(response.data)) {
             allData = response.data;
             renderDashboard();
@@ -562,6 +585,7 @@ async function fetchData(force = false) {
         } else { throw new Error(response.message || "Invalid data format from server"); }
     } catch (error) {
         console.error('Error fetching data:', error);
+        const emptyFeedEl = document.getElementById('empty-feed');
         if(emptyFeedEl) {
             emptyFeedEl.textContent = 'ไม่สามารถโหลดข้อมูลได้';
         }
@@ -588,7 +612,6 @@ function plotDataOnMap() {
     if (!map) return;
     map.eachLayer(layer => { if (layer instanceof L.Marker && !layer.options.isCurrentUser) map.removeLayer(layer); });
     allData.forEach(item => {
-        // MODIFIED: Check for both 'GPS' and 'GPSแปลง'
         const gps = item['GPS'] || item['GPSแปลง'];
         if (gps && String(gps).includes(',')) {
             const [lat, lon] = String(gps).split(',').map(s => parseFloat(s.trim()));
