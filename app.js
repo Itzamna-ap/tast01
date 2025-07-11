@@ -572,9 +572,13 @@ async function fetchData(force = false) {
             if(currentPage === 'feed') {
                renderFeedPage();
             }
-        } else { throw new Error(response.message || "Invalid data format from server"); }
+        } else { 
+            allData = []; // Clear data on error
+            throw new Error(response.message || "Invalid data format from server"); 
+        }
     } catch (error) {
         console.error('Error fetching data:', error);
+        allData = []; // Clear data on error
         const emptyFeedEl = document.getElementById('empty-feed');
         if(emptyFeedEl) {
             emptyFeedEl.textContent = 'ไม่สามารถโหลดข้อมูลได้';
@@ -586,7 +590,7 @@ async function fetchData(force = false) {
 }
 
 // --- Longdo Map Functions (Final Robust Version) ---
-async function initMap() { // Make function async
+async function initMap() {
     if (isMapInitializing) return;
     isMapInitializing = true;
 
@@ -594,10 +598,9 @@ async function initMap() { // Make function async
     page.innerHTML = `<div id="map" style="width: 100%; height: 100%; border-radius: 0.5rem; box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1);"></div>`;
     const mapContainer = document.getElementById('map');
 
-    // *** ส่วนที่แก้ไข: ตรวจสอบและดึงข้อมูลก่อนสร้างแผนที่ ***
     if (!allData || allData.length === 0) {
         console.log("Map data (allData) is empty. Fetching data before initializing map...");
-        await fetchData(true); // รอจนกว่าจะดึงข้อมูลเสร็จ
+        await fetchData(true);
         console.log("Data fetched. Proceeding with map initialization.");
     }
 
@@ -624,7 +627,7 @@ async function initMap() { // Make function async
                 language: 'th',
                 ready: function() {
                     console.log("Longdo Map is ready. Now plotting markers.");
-                    plotDataOnMap(); // Now plot the data
+                    plotDataOnMap();
                     
                     if (navigator.geolocation) {
                         navigator.geolocation.getCurrentPosition(
@@ -660,15 +663,19 @@ function plotDataOnMap() {
         return;
     }
     map.Overlays.clear();
-    console.log(`Attempting to plot ${allData.length} items on the map.`);
+    console.log(`%cAttempting to plot ${allData.length} items on the map.`, 'color: blue; font-weight: bold;');
 
     let plottedCount = 0;
-    allData.forEach(item => {
+    allData.forEach((item, index) => {
+        // *** ส่วนที่แก้ไข: กลับไปใช้ชื่อคอลัมน์ที่ถูกต้อง ***
         const gps = item['GPS'] || item['GPSแปลง'];
-        if (gps && String(gps).includes(',')) {
+        
+        if (gps && typeof gps === 'string' && gps.includes(',')) {
             const [lat, lon] = String(gps).split(',').map(s => parseFloat(s.trim()));
+            
             if (!isNaN(lat) && !isNaN(lon)) {
                 const name = String(item['ชื่อร้านค้า'] || item['ชื่อเกษตรกร'] || item['เกษตรกรเจ้าของแปลง'] || 'N/A');
+                
                 let details = '';
                 if (item.formType === 'เกษตรกร' && item['ร้านค้าในสังกัด']) {
                     details = `<div class="text-sm text-gray-600">สังกัด: ${item['ร้านค้าในสังกัด']}</div>`;
@@ -693,8 +700,9 @@ function plotDataOnMap() {
             }
         }
     });
-    console.log(`Successfully created ${plottedCount} markers.`);
+    console.log(`%cFinished. Successfully created ${plottedCount} markers.`, 'color: blue; font-weight: bold;');
 }
+
 
 function showMessageModal(message) {
     const modal = document.getElementById('message-modal');
