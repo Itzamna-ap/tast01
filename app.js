@@ -1,27 +1,3 @@
-/**
- * =================================================================================
- * FERTILIZER CUSTOMER MANAGEMENT APP
- * =================================================================================
- * This file contains the core logic for a web application designed to manage
- * information about stores, farmers, and trial plots.
- *
- * Organized by: Gemini
- * Date: 2024-07-12
- *
- * --- STRUCTURE ---
- * 1. Global State & Constants: Application-wide variables and constants.
- * 2. Application Initialization: Core functions to start and manage the app session.
- * 3. API & Data Handling: Functions for communicating with the Google Apps Script backend.
- * 4. Authentication: User login and logout functions.
- * 5. Page Navigation: Logic for switching between different views/pages.
- * 6. Page Rendering: Functions that build the HTML for each page (Dashboard, Feed, Detail, Map).
- * 7. Form Handling: All logic related to creating, populating, and submitting forms.
- * 8. UI Helpers: Utility functions for UI elements like icons and modals.
- * 9. Event Listeners: Centralized setup for initial event bindings.
- * 10. PWA / Service Worker: Progressive Web App features.
- * 11. App Start: The initial function call that kicks everything off.
- * =================================================================================
- */
 
 // ---------------------------------------------------------------------------------
 // 1. GLOBAL STATE & CONSTANTS (สถานะส่วนกลางและค่าคงที่)
@@ -44,6 +20,11 @@ const installButton = document.getElementById('install-button');
 
 // --- Backend API Endpoint (URL ของ Google Apps Script) ---
 const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyWYuttyt5bFw3h7jzUhEaWBpowkLikqILd5kaL0V6b_jveMP1Tdpd1gPGqJmqexcLS1g/exec';
+
+// --- Pre-defined Map Icons (ไอคอนสำหรับแผนที่) ---
+const storeIcon = createSvgIcon('#3b82f6');
+const farmerIcon = createSvgIcon('#22c55e');
+const trialIcon = createSvgIcon('#a855f7');
 
 
 // ---------------------------------------------------------------------------------
@@ -405,13 +386,20 @@ function initMap() {
     map = L.map('map').setView([13.7563, 100.5018], 6);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
+    // ** FIX: Reverted to a more robust horizontal flex layout for the legend **
     const legendContainer = document.getElementById('map-legend');
+    const legendItem = (icon, text) => `
+        <div class="flex flex-col items-center justify-center">
+            ${icon.options.html}
+            <span class="mt-1 font-semibold text-gray-700 text-sm">${text}</span>
+        </div>`;
+
     legendContainer.innerHTML = `
         <h4 class="font-bold text-lg text-center mb-3">คำอธิบายสัญลักษณ์</h4>
-        <div class="space-y-3 p-2">
-            <div class="flex items-center"><svg width="24" height="24" viewBox="0 0 24 24" class="mr-4 flex-shrink-0"><path fill="#3b82f6" d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg><span class="font-semibold text-gray-800">ร้านค้า</span></div>
-            <div class="flex items-center"><svg width="24" height="24" viewBox="0 0 24 24" class="mr-4 flex-shrink-0"><path fill="#22c55e" d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg><span class="font-semibold text-gray-800">เกษตรกร</span></div>
-            <div class="flex items-center"><svg width="24" height="24" viewBox="0 0 24 24" class="mr-4 flex-shrink-0"><path fill="#a855f7" d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg><span class="font-semibold text-gray-800">แปลงทดลอง</span></div>
+        <div class="flex justify-around items-start">
+            ${legendItem(storeIcon, 'ร้านค้า')}
+            ${legendItem(farmerIcon, 'เกษตรกร')}
+            ${legendItem(trialIcon, 'แปลงทดลอง')}
         </div>
     `;
 
@@ -420,7 +408,12 @@ function initMap() {
             const coords = [pos.coords.latitude, pos.coords.longitude];
             map.setView(coords, 13);
             const userIconSvg = `<svg width="32" height="32" viewBox="0 0 32 32"><circle cx="16" cy="16" r="16" fill="rgba(59, 130, 246, 0.2)"/><circle cx="16" cy="16" r="8" fill="#3B82F6" stroke="white" stroke-width="2"/></svg>`;
-            const userIcon = L.icon({ iconUrl: 'data:image/svg+xml;base64,' + btoa(userIconSvg), iconSize: [32, 32], iconAnchor: [16, 16] });
+            const userIcon = L.divIcon({
+                html: userIconSvg,
+                className: '', // remove default leaflet styles
+                iconSize: [32, 32],
+                iconAnchor: [16, 16]
+            });
             L.marker(coords, { icon: userIcon, isCurrentUser: true }).addTo(map).bindPopup('<b>ตำแหน่งของคุณ</b>').openPopup();
         });
     }
@@ -445,10 +438,17 @@ function plotDataOnMap() {
                 if (item.formType === 'เกษตรกร' && item['ร้านค้าในสังกัด']) popupContent += `<br>สังกัดร้าน: ${item['ร้านค้าในสังกัด']}`;
                 if (item.formType === 'แปลงทดลอง' && item['เกษตรกรเจ้าของแปลง']) popupContent += `<br>เจ้าของแปลง: ${item['เกษตรกรเจ้าของแปลง']}`;
                 popupContent += `<br><a href="https://www.google.com/maps?q=${lat},${lon}" target="_blank" class="text-blue-600 font-bold">นำทาง</a>`;
-
-                const colorMap = { 'ร้านค้า': '#3b82f6', 'เกษตรกร': '#22c55e', 'แปลงทดลอง': '#a855f7' };
-                const iconColor = colorMap[item.formType] || '#9ca3af';
-                L.marker([lat, lon], {icon: createSvgIcon(iconColor)}).addTo(map).bindPopup(popupContent);
+                
+                // ** FIX: Select pre-defined icon **
+                let icon;
+                switch (item.formType) {
+                    case 'ร้านค้า': icon = storeIcon; break;
+                    case 'เกษตรกร': icon = farmerIcon; break;
+                    case 'แปลงทดลอง': icon = trialIcon; break;
+                    default: icon = createSvgIcon('#9ca3af'); // Fallback grey icon
+                }
+                
+                L.marker([lat, lon], {icon: icon}).addTo(map).bindPopup(popupContent);
             }
         }
     });
@@ -492,11 +492,6 @@ function generateForm(type, data = {}) {
             <div id="image-preview-${imageType.replace(/\s+/g, '-')}" class="mt-4 grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-4"></div>
         </div>`;
     
-    // Form field definitions
-    const storeFields = `...`; // Abridged for brevity
-    const farmerFields = `...`; // Abridged for brevity
-    const trialFields = `...`; // Abridged for brevity
-
     if (type === 'store') {
         title = isEdit ? 'แก้ไขข้อมูลร้านค้า' : 'เพิ่มข้อมูลร้านค้า';
         formType = 'ร้านค้า';
@@ -635,11 +630,20 @@ async function handleFormSubmit(e) {
 // 8. UI HELPERS (ฟังก์ชันช่วยเหลือด้าน UI)
 // ---------------------------------------------------------------------------------
 
+/**
+ * Creates a custom SVG map icon using L.divIcon to prevent rendering issues.
+ * (สร้างไอคอน SVG สำหรับแผนที่โดยใช้ L.divIcon เพื่อป้องกันปัญหาการแสดงผล)
+ * @param {string} color - The hex color for the icon.
+ * @returns {L.DivIcon} - A Leaflet DivIcon instance.
+ */
 function createSvgIcon(color) {
-    const svgIcon = `<svg width="32" height="32" viewBox="0 0 24 24"><path fill="${color}" d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>`;
-    return L.icon({
-        iconUrl: 'data:image/svg+xml;base64,' + btoa(svgIcon),
-        iconSize: [32, 32], iconAnchor: [16, 32], popupAnchor: [0, -32]
+    const svgHtml = `<svg width="32" height="32" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path fill="${color}" d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>`;
+    return L.divIcon({
+        html: svgHtml,
+        className: '', // remove default leaflet styles to avoid conflicts
+        iconSize: [32, 32],
+        iconAnchor: [16, 32],
+        popupAnchor: [0, -32]
     });
 }
 
