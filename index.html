@@ -17,7 +17,7 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     
     <!-- === ส่วนที่สำคัญที่สุด: เรียกใช้ Longdo Map API พร้อมกับ Key ของคุณ === -->
-    <!-- หากยังแสดงเป็น NuMAP หมายความว่า Key นี้ถูกจำกัดโดเมนไว้ ต้องสร้าง Key ใหม่สำหรับโดเมนที่ใช้งานอยู่ -->
+    <!-- หากยังแสดงเป็น NuMAP หมายความว่า Key นี้ถูกจำกัดโดเมนไว้ ต้องไปแก้ไขที่เว็บ Longdo Map -->
     <script src="https://api.longdo.com/map/?key=23039d095f853aed32d624b72c57eab4"></script>
     <!-- ================================================================= -->
 
@@ -27,7 +27,13 @@
         .view.active { display: flex !important; }
         #main-app-view.active { display: block !important; }
         .page-content, .tab-content { display: none; }
-        .page-content.active, .tab-content.active { display: block; }
+        .page-content.active { display: block; }
+        
+        /* *** ส่วนที่แก้ไข: ทำให้หน้าแผนที่ใช้ความสูงเต็มพื้นที่ *** */
+        #map-page.active {
+            height: 100%;
+        }
+
         .bottom-nav-item[data-active='true'] { color: #ec4899; }
         .tab-button[data-active='true'] { color: #ec4899; background-color: #fff; box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1); font-weight: 700; }
         .form-input, .form-select, .form-textarea { width: 100%; background-color: #fff; border: 1px solid #d1d5db; border-radius: 0.5rem; padding: 0.75rem; font-size: 1rem; transition: all 0.2s; }
@@ -65,7 +71,6 @@
                 <div id="dashboard-page" class="page-content"></div>
                 <div id="feed-page" class="page-content"></div>
                 <div id="detail-page" class="page-content"></div>
-                <!-- *** ส่วนที่แก้ไข: ลบ div id="map" ออกจากตรงนี้ *** -->
                 <!-- JavaScript (app.js) จะสร้าง container ของแผนที่ขึ้นมาเองเมื่อจำเป็น -->
                 <div id="map-page" class="page-content"></div>
             </main>
