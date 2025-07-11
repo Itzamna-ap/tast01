@@ -588,35 +588,71 @@ async function fetchData(force = false) {
 function initMap() {
     const page = document.getElementById('map-page');
     page.innerHTML = `<div id="map" class="h-full w-full rounded-lg shadow-md min-h-[calc(100vh-160px)]"></div>`;
-    if (map) { map.remove(); map = null; }
-    map = L.map('map').setView([13.7563, 100.5018], 6);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-    if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(pos => {
-            const coords = [pos.coords.latitude, pos.coords.longitude];
-            map.setView(coords, 13);
-            L.marker(coords, { icon: L.icon({ iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png', shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png', iconSize: [25, 41], iconAnchor: [12, 41] }), isCurrentUser: true }).addTo(map).bindPopup('<b>ตำแหน่งของคุณ</b>').openPopup();
-        });
+    
+    // Check if longdo map object is available
+    if (typeof longdo === 'undefined') {
+        showMessageModal('ไม่สามารถโหลด Longdo Map API ได้');
+        return;
     }
-    if (allData.length > 0) plotDataOnMap();
+
+    map = new longdo.Map({
+        placeholder: document.getElementById('map')
+    });
+    
+    map.on('ready', () => {
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(pos => {
+                const userLocation = { lon: pos.coords.longitude, lat: pos.coords.latitude };
+                map.location(userLocation, true);
+                const userMarker = new longdo.Marker(userLocation, {
+                    title: 'ตำแหน่งของคุณ',
+                    detail: 'คุณอยู่ที่นี่'
+                });
+                map.Overlays.add(userMarker);
+            });
+        }
+        if (allData.length > 0) {
+            plotDataOnMap();
+        }
+    });
 }
 
 function plotDataOnMap() {
     if (!map) return;
-    map.eachLayer(layer => { if (layer instanceof L.Marker && !layer.options.isCurrentUser) map.removeLayer(layer); });
+
+    // Clear existing overlays except the user's marker if it exists
+    map.Overlays.clear();
+    if (navigator.geolocation) { // Re-add user marker if needed
+         navigator.geolocation.getCurrentPosition(pos => {
+            const userLocation = { lon: pos.coords.longitude, lat: pos.coords.latitude };
+            const userMarker = new longdo.Marker(userLocation, {
+                title: 'ตำแหน่งของคุณ',
+                detail: 'คุณอยู่ที่นี่'
+            });
+            map.Overlays.add(userMarker);
+        });
+    }
+
     allData.forEach(item => {
         const gps = item['GPS'] || item['GPSแปลง'];
         if (gps && String(gps).includes(',')) {
             const [lat, lon] = String(gps).split(',').map(s => parseFloat(s.trim()));
+            
             if (!isNaN(lat) && !isNaN(lon)) {
                 const name = item['ชื่อร้านค้า'] || item['ชื่อเกษตรกร'] || item['เกษตรกรเจ้าของแปลง'] || 'N/A';
-                const iconColor = { 'ร้านค้า': 'blue', 'เกษตรกร': 'green', 'แปลงทดลอง': 'violet' }[item.formType] || 'grey';
-                const markerIcon = new L.Icon({ iconUrl: `https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-${iconColor}.png`, shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png', iconSize: [25, 41], iconAnchor: [12, 41] });
-                L.marker([lat, lon], {icon: markerIcon}).addTo(map).bindPopup(`<b>${name}</b><br><a href="https://www.google.com/maps?q=${lat},${lon}" target="_blank" class="text-blue-600 font-bold">นำทาง</a>`);
+                const detail = `<b>${name}</b><br>ประเภท: ${item.formType}<br><a href="https://www.google.com/maps?q=${lat},${lon}" target="_blank">นำทางด้วย Google Maps</a>`;
+                
+                const marker = new longdo.Marker({ lon: lon, lat: lat }, {
+                    title: name,
+                    detail: detail,
+                    // You can customize icon here if needed
+                });
+                map.Overlays.add(marker);
             }
         }
     });
 }
+
 
 function showMessageModal(message) {
     const modal = document.getElementById('message-modal');
