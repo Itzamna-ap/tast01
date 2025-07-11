@@ -585,64 +585,69 @@ async function fetchData(force = false) {
     }
 }
 
-// --- Longdo Map Functions (REVISED) ---
+// --- Longdo Map Functions (REVISED AGAIN FOR ROBUSTNESS) ---
 function initMap() {
     const page = document.getElementById('map-page');
+    // First, create the placeholder element for the map.
     page.innerHTML = `<div id="map" class="h-full w-full rounded-lg shadow-md min-h-[calc(100vh-230px)]"></div>`;
-    const mapContainer = document.getElementById('map');
 
-    if (typeof longdo === 'undefined') {
-        showMessageModal('ไม่สามารถโหลด Longdo Map ได้ กรุณาตรวจสอบการเชื่อมต่ออินเทอร์เน็ตและการตั้งค่า API Key ในไฟล์ index.html');
-        return;
-    }
-
-    // --- การแก้ไข: ทำลาย instance ของแผนที่เก่า (ถ้ามี) เพื่อป้องกันข้อผิดพลาด ---
-    if (map) {
-        try {
-            map.destroy();
-        } catch (e) {
-            console.error("Error destroying map:", e);
-        }
-        map = null;
-    }
-
-    map = new longdo.Map({
-        placeholder: mapContainer,
-        language: 'th',
-        ready: function() {
-            // --- การแก้ไข: เรียก resize() ทันทีที่แผนที่พร้อม เพื่อให้แผนที่แสดงขนาดถูกต้อง ---
-            map.resize();
-            
-            plotDataOnMap();
-
-            if (navigator.geolocation) {
-                navigator.geolocation.getCurrentPosition(pos => {
-                    const userLocation = {
-                        lon: pos.coords.longitude,
-                        lat: pos.coords.latitude
-                    };
-                    map.location(userLocation, true);
-                    map.zoom(15, true);
-                    const userMarker = new longdo.Marker(userLocation, {
-                        title: 'ตำแหน่งของคุณ',
-                        icon: {
-                            url: 'https://map.longdo.com/mmmap/images/pin_mark.png'
-                        },
-                        detail: 'นี่คือตำแหน่งปัจจุบันของคุณ'
-                    });
-                    map.Overlays.add(userMarker);
-                });
-            }
-        }
-    });
-
-    // --- การแก้ไข: เพิ่ม delay และเรียก resize อีกครั้งเพื่อรองรับ CSS transition ที่อาจเกิดขึ้น ---
+    // --- การแก้ไข: ใช้ setTimeout 0ms เพื่อหน่วงการสร้างแผนที่ ---
+    // เพื่อให้แน่ใจว่า Browser ได้แสดงผลและคำนวณขนาดของ #map-page และ #map container เสร็จสิ้นแล้ว
     setTimeout(() => {
-        if (map) {
-            map.resize();
+        const mapContainer = document.getElementById('map');
+        if (!mapContainer) {
+            console.error("Map container not found after timeout.");
+            return; 
         }
-    }, 250);
+
+        if (typeof longdo === 'undefined') {
+            showMessageModal('ไม่สามารถโหลด Longdo Map ได้ กรุณาตรวจสอบการเชื่อมต่ออินเทอร์เน็ตและการตั้งค่า API Key ในไฟล์ index.html');
+            return;
+        }
+
+        // Destroy any previous map instance to prevent memory leaks
+        if (map) {
+            try {
+                map.destroy();
+            } catch (e) {
+                console.error("Error destroying previous map instance:", e);
+            }
+            map = null;
+        }
+
+        // Now, initialize the map inside the correctly-sized container.
+        map = new longdo.Map({
+            placeholder: mapContainer,
+            language: 'th',
+            ready: function() {
+                // The map is now ready. It's still good practice to call resize one last time.
+                map.resize();
+                
+                plotDataOnMap();
+
+                if (navigator.geolocation) {
+                    navigator.geolocation.getCurrentPosition(pos => {
+                        const userLocation = {
+                            lon: pos.coords.longitude,
+                            lat: pos.coords.latitude
+                        };
+                        map.location(userLocation, true);
+                        map.zoom(15, true);
+                        const userMarker = new longdo.Marker(userLocation, {
+                            title: 'ตำแหน่งของคุณ',
+                            icon: {
+                                url: 'https://map.longdo.com/mmmap/images/pin_mark.png'
+                            },
+                            detail: 'นี่คือตำแหน่งปัจจุบันของคุณ'
+                        });
+                        map.Overlays.add(userMarker);
+                    });
+                }
+            }
+        });
+    }, 0); // A timeout of 0ms is sufficient to defer execution to the next event loop cycle.
 }
+
 
 function plotDataOnMap() {
     if (!map) return;
@@ -663,7 +668,6 @@ function plotDataOnMap() {
                     details = `<div class="text-sm text-gray-600">เจ้าของแปลง: ${item['เกษตรกรเจ้าของแปลง']}</div>`;
                 }
 
-                // --- ส่วนที่แก้ไข: เปลี่ยนลิงก์นำทางเป็น Google Maps ---
                 const navLink = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lon}`;
                 const popupContent = `<div class="p-1" style="font-family: sans-serif; max-width: 200px;">
                                         <b class="text-base" style="font-size: 1rem; font-weight: bold;">${name}</b>
@@ -678,7 +682,6 @@ function plotDataOnMap() {
                     { lon, lat },
                     {
                         title: name,
-                        // --- ส่วนที่แก้ไข: กำหนดขนาดและจุดยึดของไอคอน ---
                         icon: {
                             url: iconUrl,
                             size: { width: 25, height: 41 },
