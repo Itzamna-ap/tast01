@@ -376,18 +376,20 @@ function renderDetailPage(data) {
     if (data.images && data.images.length > 0) {
         galleryHtml += `<h3 class="text-lg font-bold mt-6 mb-2 border-t pt-4">แกลเลอรีรูปภาพ</h3>`;
         const imagesByType = data.images.reduce((acc, img) => {
-            const type = img.imageType || 'ทั่วไป';
-            if (!acc[type]) acc[type] = [];
-            acc[type].push(img.Pic || img.imageUrl);
+            // **สำคัญ:** เปลี่ยนกลับมาใช้ 'imageUrl' ซึ่งเป็นลิงก์ไปยัง Google Drive
+            const imageUrl = img.imageUrl; 
+            const imageType = img.imageType || 'ทั่วไป';
+            if (!acc[imageType]) {
+                acc[imageType] = [];
+            }
+            if(imageUrl) acc[imageType].push(imageUrl);
             return acc;
         }, {});
 
         for(const [type, urls] of Object.entries(imagesByType)) {
             galleryHtml += `<h4 class="font-semibold mt-2">${type}</h4><div class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-4 mb-4">`;
             urls.forEach(url => {
-                if (url) {
-                   galleryHtml += `<a href="${url}" target="_blank" rel="noopener noreferrer"><img src="${url}" class="w-full h-24 object-cover rounded-lg shadow-md hover:opacity-80 transition-opacity" loading="lazy"></a>`;
-                }
+                galleryHtml += `<a href="${url}" target="_blank" rel="noopener noreferrer"><img src="${url}" class="w-full h-24 object-cover rounded-lg shadow-md hover:opacity-80 transition-opacity" loading="lazy"></a>`;
             });
             galleryHtml += `</div>`;
         }
@@ -623,65 +625,88 @@ async function handleFormSubmit(e) {
     e.preventDefault();
     const form = e.target;
     const submitButton = form.querySelector('button[type="submit"]');
-    submitButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> กำลังบันทึก...';
+    const originalButtonText = submitButton.innerHTML;
+    submitButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> กำลังบันทึกข้อมูล...';
     submitButton.disabled = true;
 
     const formData = new FormData(form);
     const data = Object.fromEntries(formData.entries());
-    
-    let imagesToUpload = [];
-    const imageInputs = form.querySelectorAll('.image-upload-input');
-    const fileReadPromises = [];
+    const isEdit = data.rowId && data.rowId !== '';
 
+    // 1. Collect image files to be uploaded
+    const imagesToUpload = [];
+    const imageInputs = form.querySelectorAll('.image-upload-input');
     imageInputs.forEach(input => {
         const imageType = input.dataset.imageType;
         Array.from(input.files).forEach(file => {
-            const promise = new Promise((resolve, reject) => {
-                const reader = new FileReader();
-                reader.readAsDataURL(file);
-                reader.onload = () => resolve({
-                    fileName: file.name,
-                    mimeType: file.type,
-                    data: reader.result.split(',')[1],
-                    imageType: imageType
-                });
-                reader.onerror = reject;
-            });
-            fileReadPromises.push(promise);
+            imagesToUpload.push({ file, imageType });
         });
     });
-    
-    if(fileReadPromises.length > 0) {
-        await apiCall(null, true); // Show loading
-    }
 
     try {
-        if(fileReadPromises.length > 0) {
-            imagesToUpload = await Promise.all(fileReadPromises);
+        // 2. Save text data first
+        const textDataPayload = {
+            action: isEdit ? 'updateData' : 'saveData',
+            payload: data,
+            user: currentUser
+        };
+        const response = await apiCall(textDataPayload, !isEdit); 
+        
+        if (response.result !== 'success' || !response.rowId) {
+            throw new Error(response.message || 'ไม่สามารถบันทึกข้อมูลหลักได้');
+        }
+        
+        const savedRowId = response.rowId;
+
+        // 3. If there are images, upload them one by one
+        if (imagesToUpload.length > 0) {
+            for (let i = 0; i < imagesToUpload.length; i++) {
+                const { file, imageType } = imagesToUpload[i];
+                submitButton.innerHTML = `<i class="fas fa-spinner fa-spin"></i> กำลังอัปโหลดรูป ${i + 1}/${imagesToUpload.length}...`;
+                
+                const reader = new FileReader();
+                const fileReadPromise = new Promise((resolve, reject) => {
+                    reader.onload = () => resolve(reader.result.split(',')[1]);
+                    reader.onerror = reject;
+                });
+                reader.readAsDataURL(file);
+                const base64Data = await fileReadPromise;
+
+                const imagePayload = {
+                    action: 'uploadImage',
+                    rowId: savedRowId,
+                    user: currentUser,
+                    image: {
+                        fileName: file.name,
+                        mimeType: file.type,
+                        data: base64Data,
+                        imageType: imageType
+                    }
+                };
+                
+                const imageResponse = await apiCall(imagePayload);
+                if (imageResponse.result !== 'success') {
+                    console.warn(`Failed to upload image ${file.name}: ${imageResponse.message}`);
+                    showMessageModal(`อัปโหลดรูป ${file.name} ไม่สำเร็จ: ${imageResponse.message}`);
+                }
+            }
         }
 
-        const isEdit = data.rowId && data.rowId !== '';
-        const payload = { 
-            action: isEdit ? 'updateData' : 'saveData', 
-            payload: data, 
-            user: currentUser,
-            images: imagesToUpload
-        };
+        // 4. Finalize
+        showMessageModal(isEdit ? 'แก้ไขข้อมูลสำเร็จ!' : 'บันทึกข้อมูลและรูปภาพสำเร็จ!');
+        closeFormModal();
+        
+        // Force a full data refresh and then navigate
+        await fetchData(true); 
+        const updatedItem = allData.find(item => item.rowId === savedRowId);
+        showPage(updatedItem ? 'detail' : 'feed', updatedItem);
 
-        const response = await apiCall(payload, true);
-        if (response.result === 'success') {
-            showMessageModal(isEdit ? 'แก้ไขข้อมูลสำเร็จ!' : 'บันทึกข้อมูลสำเร็จ!');
-            closeFormModal();
-            await new Promise(resolve => setTimeout(resolve, 500));
-            await fetchData(true);
-            showPage('feed');
-        } else { throw new Error(response.message || 'Unknown error from server'); }
+
     } catch (error) {
         console.error("Submit Error:", error);
         showMessageModal(`เกิดข้อผิดพลาดในการบันทึก: ${error.message}`);
     } finally {
-        loadingOverlay.classList.add('hidden');
-        submitButton.innerHTML = isEdit ? 'บันทึกการแก้ไข' : 'เพิ่มข้อมูล';
+        submitButton.innerHTML = originalButtonText;
         submitButton.disabled = false;
     }
 }
