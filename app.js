@@ -320,7 +320,15 @@ function renderDataList(tabId) {
     data.sort((a, b) => new Date(b.createdDate) - new Date(a.createdDate));
 
     data.forEach((item) => {
-        const name = item['ชื่อร้านค้า'] || item['ชื่อเกษตรกร'] || item['เกษตรกรเจ้าของแปลง'] || 'N/A';
+        let name = 'N/A';
+        if (item.formType === 'ร้านค้า') {
+            name = item['ชื่อร้านค้า'] || 'N/A';
+        } else if (item.formType === 'เกษตรกร') {
+            name = item['ชื่อเกษตรกร'] || 'N/A';
+        } else if (item.formType === 'แปลงทดลอง') {
+            name = item['เกษตรกรเจ้าของแปลง'] || item['ชื่อเจ้าของสวน'] || 'แปลงทดลอง';
+        }
+
         const subtext = item['ชื่อเจ้าของ'] || `โดย: ${item.createdBy}`;
         const iconClass = { 'ร้านค้า': 'fa-store text-blue-500', 'เกษตรกร': 'fa-leaf text-green-500', 'แปลงทดลอง': 'fa-vial text-purple-500' }[item.formType] || 'fa-question-circle';
         const row = document.createElement('div');
@@ -334,7 +342,16 @@ function renderDataList(tabId) {
 function renderDetailPage(data) {
     const container = document.getElementById('detail-page');
     let detailsHtml = '', linkedHtml = '', galleryHtml = '';
-    const mainName = data['ชื่อร้านค้า'] || data['ชื่อเกษตรกร'] || data['เกษตรกรเจ้าของแปลง'] || 'รายละเอียด';
+    
+    let mainName = 'รายละเอียด';
+    if (data.formType === 'ร้านค้า') {
+        mainName = data['ชื่อร้านค้า'] || 'N/A';
+    } else if (data.formType === 'เกษตรกร') {
+        mainName = data['ชื่อเกษตรกร'] || 'N/A';
+    } else if (data.formType === 'แปลงทดลอง') {
+        mainName = data['เกษตรกรเจ้าของแ��ลง'] || data['ชื่อเจ้าของสวน'] || 'แปลงทดลอง';
+    }
+
     
     for (const [key, value] of Object.entries(data)) {
         if (value && !['formType', 'rowId', 'sheetRow', 'images'].some(k => key.startsWith(k)) && !key.startsWith('creator')) {
@@ -837,20 +854,21 @@ function plotDataOnMap(AdvancedMarkerElement, createPinSvg) {
             const [lat, lon] = String(gps).split(',').map(s => parseFloat(s.trim()));
             if (!isNaN(lat) && !isNaN(lon)) {
                 let popupContent = '';
+                let title = 'N/A';
+
                 if (item.formType === 'ร้านค้า') {
-                    popupContent = `<b>${item['ชื่อร้านค้า'] || 'N/A'}</b>`;
+                    title = item['ชื่อร้านค้า'] || 'N/A';
+                    popupContent = `<b>${title}</b>`;
                 } else if (item.formType === 'เกษตรกร') {
-                    popupContent = `<b>${item['ชื่อเกษตรกร'] || 'N/A'}</b>`;
-                    if (item['ร้านค้าในสังกัด']) {
-                        popupContent += `<br><small>สังกัด: ${item['ร้านค้าในสังกัด']}</small>`;
-                    }
+                    title = item['ชื่อเกษตรกร'] || 'N/A';
+                    const storeAffiliation = item['ร้านค้าในสังกัด'] || 'ไม่มี';
+                    popupContent = `<b>${title}</b><br><small>สังกัด: ${storeAffiliation}</small>`;
                 } else if (item.formType === 'แปลงทดลอง') {
-                    const mainName = item['พืชที่ทดลอง'] || item['ชื่อเจ้าของสวน'] || 'N/A';
-                    popupContent = `<b>${mainName}</b>`;
-                    if (item['เกษตรกรเจ้าของแปลง']) {
-                        popupContent += `<br><small>ของ: ${item['เกษตรกรเจ้าของแปลง']}</small>`;
-                    }
+                    title = item['ชื่อเจ้าของสวน'] || item['พืชที่ทดลอง'] || 'N/A';
+                    const farmerAffiliation = item['เกษตรกรเจ้าของแปลง'] || 'ไม่มี';
+                    popupContent = `<b>${title}</b><br><small>สังกัด: ${farmerAffiliation}</small>`;
                 }
+                
                 popupContent += `<br><a href="https://www.google.com/maps/dir/?api=1&destination=${lat},${lon}" target="_blank" class="text-blue-600 font-bold">นำทาง</a>`;
 
                 const color = iconColors[item.formType] || '#7f7f7f';
@@ -859,7 +877,7 @@ function plotDataOnMap(AdvancedMarkerElement, createPinSvg) {
                     position: { lat, lng: lon },
                     map: map,
                     content: createPinSvg(color),
-                    title: String(item['ชื่อร้านค้า'] || item['ชื่อเกษตรกร'] || item['พืชที่ทดลอง'] || 'N/A')
+                    title: String(title)
                 });
 
                 marker.addListener('click', () => {
