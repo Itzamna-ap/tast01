@@ -179,8 +179,7 @@ function renderDashboard() {
         }
     });
     const topProvinces = Object.entries(provinceCounts)
-        .sort(([, a], [, b]) => b - a)
-        .slice(0, 5);
+        .sort(([, a], [, b]) => b - a);
 
     let recentItemsHtml = recentItems.map(item => {
         let name = 'N/A';
@@ -192,7 +191,7 @@ function renderDashboard() {
                 name = item['ชื่อเกษตรกร'];
                 break;
             case 'แปลงทดลอง':
-                name = item['พืชที่ทดลอง'] || item['เกษตรกรเจ้าของแปลง'];
+                name = item['เกษตรกรเจ้าของแปลง'] || item['ชื่อเจ้าของสวน'] || 'แปลงทดลอง';
                 break;
         }
         name = name || 'N/A';
@@ -243,7 +242,7 @@ function renderDashboard() {
             <div class="bg-white p-4 rounded-lg shadow-sm"><h3 class="font-bold mb-3 text-gray-700">รายการล่าสุด</h3><div class="space-y-3">${recentItemsHtml}</div></div>
             <div class="space-y-6">
                  <div class="bg-white p-4 rounded-lg shadow-sm">
-                    <h3 class="font-bold mb-2 text-gray-700">Top 5 จังหวัด (ร้านค้า)</h3>
+                    <h3 class="font-bold mb-2 text-gray-700">จังหวัดที่มีร้านค้า</h3>
                     <div class="space-y-1" id="top-provinces-container">${topProvincesHtml}</div>
                 </div>
                 <div class="bg-white p-4 rounded-lg shadow-sm">
