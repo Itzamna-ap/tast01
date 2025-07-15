@@ -1,5 +1,6 @@
 // --- Global State and Element Selectors ---
-let currentUser = null, allData = [], map = null, doughnutChartInstance = null;
+let currentUser = null, allData = [], map = null, doughnutChartInstance = null, markers = [];
+let provinceData = { provinces: {}, loading: false, apiKey: "AIzaSyBitndsZjoAO9w0dzVl39xkm2LuuwdGlyE" };
 const loginView = document.getElementById('login-view');
 const mainAppView = document.getElementById('main-app-view');
 const formModal = document.getElementById('form-modal');
@@ -100,51 +101,169 @@ function showPage(pageName, detailData = null) {
     if (pageName === 'map') initMap();
 }
 
-/**
- * Renders the dashboard with store, farmer, AND trial plot counts.
- */
+async function geocodeAndCacheProvinces() {
+    if (provinceData.loading) return;
+    provinceData.loading = true;
+    console.log("Starting geocoding process...");
+
+    const storesToGeocode = allData.filter(item => 
+        item.formType === 'ร้านค้า' && 
+        item.GPS && 
+        !provinceData.provinces[item.rowId]
+    );
+
+    if (storesToGeocode.length === 0) {
+        console.log("No new stores to geocode.");
+        provinceData.loading = false;
+        renderDashboard(); // Re-render in case the view was loaded before
+        return;
+    }
+
+    const geocodePromises = storesToGeocode.map(async (store) => {
+        try {
+            const [lat, lng] = String(store.GPS).split(',').map(s => s.trim());
+            if (isNaN(parseFloat(lat)) || isNaN(parseFloat(lng))) return null;
+
+            const response = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${provinceData.apiKey}&language=th`);
+            if (!response.ok) return null;
+            
+            const data = await response.json();
+            if (data.status === 'OK' && data.results.length > 0) {
+                const addressComponents = data.results[0].address_components;
+                const provinceComponent = addressComponents.find(c => c.types.includes('administrative_area_level_1'));
+                if (provinceComponent) {
+                    return { rowId: store.rowId, province: provinceComponent.long_name.replace('จังหวัด', '').trim() };
+                }
+            }
+            return null;
+        } catch (error) {
+            console.error("Geocoding API error:", error);
+            return null;
+        }
+    });
+
+    const results = await Promise.all(geocodePromises);
+
+    results.forEach(result => {
+        if (result && result.rowId && result.province) {
+            provinceData.provinces[result.rowId] = result.province;
+        }
+    });
+
+    console.log("Geocoding process finished. Cache updated:", provinceData.provinces);
+    provinceData.loading = false;
+    
+    if (document.getElementById('dashboard-page').classList.contains('active')) {
+        renderDashboard();
+    }
+}
+
 function renderDashboard() {
     const page = document.getElementById('dashboard-page');
+
     const storeCount = allData.filter(d => d.formType === 'ร้านค้า').length;
     const farmerCount = allData.filter(d => d.formType === 'เกษตรกร').length;
     const trialCount = allData.filter(d => d.formType === 'แปลงทดลอง').length;
-    
-    // Updated to grid-cols-3 and added the third card for Trial Plots
+
+    const recentItems = [...allData]
+        .sort((a, b) => new Date(b.createdDate) - new Date(a.createdDate))
+        .slice(0, 7);
+
+    const newStores = allData.filter(d => d.formType === 'ร้านค้า' && d['สถานะ'] === 'ร้านใหม่').length;
+    const oldStores = allData.filter(d => d.formType === 'ร้านค้า' && d['สถานะ'] === 'ร้านเก่า').length;
+
+    const provinceCounts = {};
+    Object.values(provinceData.provinces).forEach(province => {
+        if (province) {
+            provinceCounts[province] = (provinceCounts[province] || 0) + 1;
+        }
+    });
+    const topProvinces = Object.entries(provinceCounts)
+        .sort(([, a], [, b]) => b - a)
+        .slice(0, 5);
+
+    let recentItemsHtml = recentItems.map(item => {
+        let name = 'N/A';
+        switch (item.formType) {
+            case 'ร้านค้า':
+                name = item['ชื่อร้านค้า'];
+                break;
+            case 'เกษตรกร':
+                name = item['ชื่อเกษตรกร'];
+                break;
+            case 'แปลงทดลอง':
+                name = item['พืชที่ทดลอง'] || item['เกษตรกรเจ้าของแปลง'];
+                break;
+        }
+        name = name || 'N/A';
+
+        const subtext = item.formType;
+        const iconClass = { 'ร้านค้า': 'fa-store text-blue-500', 'เกษตรกร': 'fa-leaf text-green-500', 'แปลงทดลอง': 'fa-vial text-purple-500' }[item.formType] || 'fa-question-circle';
+        return `<div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 cursor-pointer" onclick='showLinkedDetail("${item.rowId}")'>
+                    <div class="flex items-center space-x-4 overflow-hidden">
+                        <i class="fas ${iconClass} text-xl w-6 text-center"></i>
+                        <div class="overflow-hidden">
+                            <p class="font-semibold text-gray-800 truncate">${name}</p>
+                            <p class="text-sm text-gray-500 truncate">${subtext}</p>
+                        </div>
+                    </div>
+                    <i class="fas fa-chevron-right text-gray-400"></i>
+                </div>`;
+    }).join('');
+    if(recentItems.length === 0) recentItemsHtml = '<p class="text-center text-gray-500 py-4">ไม่มีข้อมูลล่าสุด</p>';
+
+    let topProvincesHtml = '';
+    if (provinceData.loading && topProvinces.length === 0) {
+        topProvincesHtml = '<p class="text-center text-gray-500 py-4">กำลังโหลดข้อมูลจังหวัด...</p>';
+    } else if (topProvinces.length > 0) {
+        topProvincesHtml = topProvinces.map(([name, count]) => `
+            <div class="flex justify-between items-center py-2 border-b">
+                <span class="text-gray-700">${name}</span>
+                <span class="font-bold text-gray-900">${count}</span>
+            </div>
+        `).join('');
+    } else {
+        topProvincesHtml = '<p class="text-center text-gray-500 py-4">ไม่มีข้อมูลจังหวัดของร้านค้า</p>';
+    }
+
     page.innerHTML = `
         <div class="grid grid-cols-3 gap-4 mb-6">
-            <div class="bg-white p-4 rounded-lg shadow-sm text-center">
-                <p class="text-sm text-gray-500">ร้านค้า</p>
-                <p class="text-3xl font-bold text-blue-500">${storeCount}</p>
-            </div>
-            <div class="bg-white p-4 rounded-lg shadow-sm text-center">
-                <p class="text-sm text-gray-500">เกษตรกร</p>
-                <p class="text-3xl font-bold text-green-500">${farmerCount}</p>
-            </div>
-            <div class="bg-white p-4 rounded-lg shadow-sm text-center">
-                <p class="text-sm text-gray-500">แปลงทดลอง</p>
-                <p class="text-3xl font-bold text-purple-500">${trialCount}</p>
+            <div class="bg-white p-4 rounded-lg shadow-sm text-center"><p class="text-sm text-gray-500">ร้านค้า</p><p class="text-3xl font-bold text-blue-500">${storeCount}</p></div>
+            <div class="bg-white p-4 rounded-lg shadow-sm text-center"><p class="text-sm text-gray-500">เกษตรกร</p><p class="text-3xl font-bold text-green-500">${farmerCount}</p></div>
+            <div class="bg-white p-4 rounded-lg shadow-sm text-center"><p class="text-sm text-gray-500">แปลงทดลอง</p><p class="text-3xl font-bold text-purple-500">${trialCount}</p></div>
+        </div>
+        <div class="mb-6">
+            <h3 class="text-lg font-bold text-gray-700 mb-3">สรุปสถานะร้านค้า</h3>
+            <div class="grid grid-cols-2 gap-4">
+                <div class="bg-white p-3 rounded-lg shadow-sm text-center"><p class="text-sm text-gray-500">ร้านค้าใหม่</p><p class="text-2xl font-bold text-blue-500">${newStores}</p></div>
+                <div class="bg-white p-3 rounded-lg shadow-sm text-center"><p class="text-sm text-gray-500">ร้านค้าเก่า</p><p class="text-2xl font-bold text-gray-600">${oldStores}</p></div>
             </div>
         </div>
-        <div class="bg-white p-4 rounded-lg shadow-sm">
-            <h3 class="font-bold mb-2 text-center">สัดส่วนข้อมูล</h3>
-            <div class="max-w-xs mx-auto">
-                <canvas id="doughnutChart"></canvas>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="bg-white p-4 rounded-lg shadow-sm"><h3 class="font-bold mb-3 text-gray-700">รายการล่าสุด</h3><div class="space-y-3">${recentItemsHtml}</div></div>
+            <div class="space-y-6">
+                 <div class="bg-white p-4 rounded-lg shadow-sm">
+                    <h3 class="font-bold mb-2 text-gray-700">Top 5 จังหวัด (ร้านค้า)</h3>
+                    <div class="space-y-1" id="top-provinces-container">${topProvincesHtml}</div>
+                </div>
+                <div class="bg-white p-4 rounded-lg shadow-sm">
+                    <h3 class="font-bold mb-2 text-center text-gray-700">สัดส่วนข้อมูล</h3>
+                    <div class="max-w-xs mx-auto"><canvas id="doughnutChart"></canvas></div>
+                </div>
             </div>
         </div>`;
     
     if (doughnutChartInstance) doughnutChartInstance.destroy();
-    const doughnutCtx = document.getElementById('doughnutChart').getContext('2d');
-    doughnutChartInstance = new Chart(doughnutCtx, { 
-        type: 'doughnut', 
-        data: { 
-            labels: ['ร้านค้า', 'เกษตรกร', 'แปลงทดลอง'], 
-            datasets: [{ 
-                data: [storeCount, farmerCount, trialCount], 
-                backgroundColor: ['#3b82f6', '#22c55e', '#a855f7'], 
-                hoverOffset: 4 
-            }] 
-        } 
-    });
+    const doughnutCtx = document.getElementById('doughnutChart')?.getContext('2d');
+    if(doughnutCtx) {
+        doughnutChartInstance = new Chart(doughnutCtx, { 
+            type: 'doughnut', 
+            data: { 
+                labels: ['ร้านค้า', 'เกษตรกร', 'แปลงทดลอง'], 
+                datasets: [{ data: [storeCount, farmerCount, trialCount], backgroundColor: ['#3b82f6', '#22c55e', '#a855f7'], hoverOffset: 4 }] 
+            } 
+        });
+    }
 }
 
 function renderFeedPage() {
@@ -372,13 +491,14 @@ function generateForm(type, data = {}) {
                 </div></div>`;
     } else if (type === 'farmer') {
         const stores = allData.filter(d => d.formType === 'ร้านค้า');
-        const storeOptions = stores.map(s => `<option value="${s['ชื่อร้านค้า']}" ${safeVal('ร้านค้าในสังกัด') === s['ชื่อร้านค้า'] ? 'selected' : ''}>${s['ชื่อร้านค้า']}</option>`).join('');
+        const storeOptions = stores.map(s => `<option value="${s['ชื่อร้านค้า']}" ${safeVal('ร้านค้าในสังกัด') === s['��ื่อร้านค้า'] ? 'selected' : ''}>${s['ชื่อร้านค้า']}</option>`).join('');
         title = isEdit ? 'แก้ไขข้อมูลเกษตรกร' : 'เพิ่มข้อมูลเกษตรกร';
         formType = 'เกษตรกร';
         html = `<div class="p-6 overflow-y-auto"><h3 class="text-xl font-bold mb-6 border-b pb-4">ข้อมูลเกษตรกร</h3><div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div><label class="form-label">ชื่อเกษตรกร</label><input name="ชื่อเกษตรกร" class="form-input" required value="${safeVal('ชื่อเกษตรกร')}"></div>
                     <div><label class="form-label">ร้านค้าในสังกัด</label><select name="ร้านค้าในสังกัด" class="form-select"><option value="">-- ไม่ระบุ --</option>${storeOptions}</select></div>
                     <div><label class="form-label">เบอร์โทรเกษตรกร</label><input name="เบอร์โทรเกษตรกร" class="form-input" value="${safeVal('เบอร์โทรเกษตรกร')}"></div>
+                    <div class="md:col-span-2"><label class="form-label">GPS</label><div class="flex"><input name="GPS" id="gps-input" class="form-input rounded-r-none" value="${safeVal('GPS')}"><button type="button" onclick="getGeoLocation('gps-input')" class="bg-blue-500 text-white px-4 rounded-r-lg"><i class="fas fa-map-marker-alt"></i></button></div></div>
                     <div class="md:col-span-2"><label class="form-label">ที่อยู่เกษตรกร</label><textarea name="ที่อยู่เกษตรกร" class="form-textarea">${safeVal('ที่อยู่เกษตรกร')}</textarea></div>
                     <div><label class="form-label">เพศเกษตรกร</label><select name="เพศเกษตรกร" class="form-select"><option ${safeVal('เพศเกษตรกร') === 'ชาย' ? 'selected' : ''}>ชาย</option><option ${safeVal('เพศเกษตรกร') === 'หญิง' ? 'selected' : ''}>หญิง</option></select></div>
                     <div><label class="form-label">อายุเกษตรกร</label><input name="อายุเกษตรกร" type="number" class="form-input" value="${safeVal('อายุเกษตรกร')}"></div>
@@ -403,7 +523,7 @@ function generateForm(type, data = {}) {
         formType = 'แปลงทดลอง';
         html = `<div class="p-6 overflow-y-auto"><h3 class="text-xl font-bold mb-6 border-b pb-4">ข้อมูลการขอทำแปลง</h3><div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div><label class="form-label">เกษตรกรเจ้าของแปลง</label><select name="เกษตรกรเจ้าของแปลง" class="form-select"><option value="">-- ไม่ระบุ --</option>${farmerOptions}</select></div>
-                    <div><label class="form-label">ชื่อเจ้าของสวน (ถ้าไม่ตรงกับเกษตรกร)</label><input name="ชื่อเจ้าของสวน" class="form-input" value="${safeVal('ชื่อเจ้าของสวน')}"></div>
+                    <div><label class="form-label">ชื่อเจ้าของสวน</label><input name="ชื่อเจ้าของสวน" class="form-input" value="${safeVal('ชื่อเจ้าของสวน')}"></div>
                     <div><label class="form-label">ร้านตัวแทน</label><input name="ร้านตัวแทน" class="form-input" value="${safeVal('ร้านตัวแทน')}"></div>
                     <div><label class="form-label">เบอร์โทรแปลงทดลอง</label><input name="เบอร์โทรแปลงทดลอง" class="form-input" value="${safeVal('เบอร์โทรแปลงทดลอง')}"></div>
                     <div class="md:col-span-2"><label class="form-label">ที่อยู่แปลงทดลอง</label><textarea name="ที่อยู่แปลงทดลอง" class="form-textarea">${safeVal('ที่อยู่แปลงทดลอง')}</textarea></div>
@@ -423,7 +543,7 @@ function generateForm(type, data = {}) {
                     <div class="md:col-span-2"><label class="form-label">วิธีใช้ปุ๋ยทดลอง</label><textarea name="วิธีใช้ปุ๋ยทดลอง" class="form-textarea">${safeVal('วิธีใช้ปุ๋ยทดลอง')}</textarea></div>
                     <div class="md:col-span-2"><label class="form-label">ผลที่คาดหวัง</label><textarea name="ผลที่คาดหวัง" class="form-textarea">${safeVal('ผลที่คาดหวัง')}</textarea></div>
                     <div><label class="form-label">วันติดตามผล</label><input name="วันติดตามผล" type="date" class="form-input" value="${safeVal('วันติดตามผล')}"></div>
-                    <div><label class="form-label">ผลเป็นไปตามคาดหวังหรือไม่</label><select name="ผลเป็นไปตามคาดหวังหรือไม่" class="form-select"><option ${safeVal('ผลเป็นไปตามคาดหวังหรือไม่') === 'ใช่' ? 'selected' : ''}>ใช่</option><option ${safeVal('ผลเป็นไปตามคาดหวังหรือไม่') === 'ไม่' ? 'selected' : ''}>ไม่</option><option ${safeVal('ผลเป็นไปตามคาดหวังหรือไม่') === 'ยังไม่ทราบ' ? 'selected' : ''}>ยังไม่ทราบ</option></select></div>
+                    <div><label class="form-label">ผลเป็นไปตามคาดหวังหรือไม่</label><select name="ผลเป็นไปตามคาดหวังหรือไม่" class="form-select"><option ${safeVal('ผลเป็นไปตามคาดหวังหรือไม่') === 'ใช่' ? 'selected' : ''}>ใช่</option><option ${safeVal('ผลเป็นไปตามคาดหวังหรือไม่') === 'ไม่' ? 'selected' : ''}>ไม่</option><option ${safeVal('ผลเป็นไปตามคาดหวังหรือ���ม่') === 'ยังไม่ทราบ' ? 'selected' : ''}>ยังไม่ทราบ</option></select></div>
                     <div><label class="form-label">การเปลี่ยนแปลงของดิน</label><input name="การเปลี่ยนแปลงของดิน" class="form-input" value="${safeVal('การเปลี่ยนแปลงของดิน')}"></div>
                     <div><label class="form-label">การเปลี่ยนแปลงของพืช</label><input name="การเปลี่ยนแปลงของพืช" class="form-input" value="${safeVal('การเปลี่ยนแปลงของพืช')}"></div>
                     <div class="md:col-span-2"><label class="form-label">โอกาสที่จะซื้อ</label><input name="โอกาสที่จะซื้อ" class="form-input" value="${safeVal('โอกาสที่จะซื้อ')}"></div>
@@ -488,7 +608,7 @@ function getGeoLocation(inputElId) {
                 buttonEl.disabled = false;
             },
             err => {
-                showMessageModal(`เกิดข้อผิดพลาด: ${err.message}`);
+                showMessageModal(`เกิดข้��ผิดพลาด: ${err.message}`);
                 buttonEl.innerHTML = originalHtml;
                 buttonEl.disabled = false;
             }
@@ -577,6 +697,7 @@ async function fetchData(force = false) {
         const response = await apiCall({ action: 'getData', user: currentUser }, true);
         if(response.result === 'success' && Array.isArray(response.data)) {
             allData = response.data;
+            geocodeAndCacheProvinces(); // Start geocoding in the background
             renderDashboard();
             const currentPage = document.querySelector('.page-content.active')?.id.replace('-page','');
             if(currentPage === 'feed') {
@@ -592,59 +713,100 @@ async function fetchData(force = false) {
     }
 }
 
-function initMap() {
-    // 1. สร้าง Control ของ Legend
-    const legend = L.control({position: 'bottomright'}); // กำหนดตำแหน่งที่มุมขวาล่าง
-    legend.onAdd = function (map) {
-        const div = L.DomUtil.create('div', 'info legend bg-white p-2 rounded-md shadow-lg');
-        const types = {
-            'ร้านค้า': 'blue',
-            'เกษตรกร': 'green',
-            'แปลงทดลอง': 'violet',
-            'ตำแหน่งของคุณ': 'red'
-        };
-
-        div.innerHTML += '<h4 class="font-bold mb-1">สัญลักษณ์</h4>'; // เพิ่มหัวข้อ
-        
-        for (let key in types) {
-            div.innerHTML +=
-                `<div class="flex items-center">
-                   <img src="https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-${types[key]}.png" class="w-4 h-auto mr-2">
-                   <span>${key}</span>
-                 </div>`;
-        }
-        return div;
-    };
+async function initMap() {
+    console.log("initMap called.");
     const page = document.getElementById('map-page');
-    page.innerHTML = `<div id="map" class="h-full w-full rounded-lg shadow-md min-h-[calc(100vh-180px)]"></div>`;   
-    if (map) { map.remove(); map = null; }   
-    map = L.map('map').setView([13.7563, 100.5018], 6);
-    legend.addTo(map);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+    page.innerHTML = `<div id="map" class="h-full w-full rounded-lg shadow-md min-h-[calc(100vh-180px)]"></div>`;
+
+    if (typeof google === 'undefined' || typeof google.maps === 'undefined') {
+        console.error("Google Maps API not loaded yet.");
+        page.innerHTML = `<div class="flex items-center justify-center h-full text-red-500">ไม่สามารถโหลด Google Maps API ได้.</div>`;
+        return;
+    }
+    
+    const { Map } = await google.maps.importLibrary("maps");
+    const { AdvancedMarkerElement } = await google.maps.importLibrary("marker");
+
+    const mapOptions = {
+        center: { lat: 13.7563, lng: 100.5018 },
+        zoom: 6,
+        mapId: "ADVANCE_FERTILIZER_MAP",
+        mapTypeControl: false,
+        streetViewControl: false,
+    };
+
+    map = new Map(document.getElementById('map'), mapOptions);
+
+    const legend = document.createElement('div');
+    legend.className = 'info legend bg-white p-2 rounded-md shadow-lg';
+    legend.innerHTML += '<h4 class="font-bold mb-1">สัญลักษณ์</h4>';
+    
+    const types = {
+        'ร้านค้า': '#3b82f6',
+        'เกษตรกร': '#22c55e',
+        'แปลงทดลอง': '#a855f7',
+        'ตำแหน่งของคุณ': '#f54e42'
+    };
+    
+    const createPinSvg = (color) => {
+        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        svg.setAttribute('width', '28');
+        svg.setAttribute('height', '40');
+        svg.setAttribute('viewBox', '0 0 384 512');
+        svg.innerHTML = `<path fill="${color}" d="M172.268 501.67C26.97 291.031 0 269.413 0 192 0 85.961 85.961 0 192 0s192 85.961 192 192c0 77.413-26.97 99.031-172.268 309.67a24 24 0 0 1-35.464 0zM192 256a64 64 0 1 0 0-128 64 64 0 1 0 0 128z"/>`;
+        return svg;
+    };
+
+
+    for (const [key, value] of Object.entries(types)) {
+        const legendItem = document.createElement('div');
+        legendItem.className = 'flex items-center my-1';
+        const iconContainer = document.createElement('div');
+        iconContainer.className = 'w-5 h-7 flex items-center justify-center mr-2';
+        iconContainer.appendChild(createPinSvg(value));
+        legendItem.appendChild(iconContainer);
+        const text = document.createElement('span');
+        text.textContent = key;
+        legendItem.appendChild(text);
+        legend.appendChild(legendItem);
+    }
+    map.controls[google.maps.ControlPosition.RIGHT_BOTTOM].push(legend);
+
     if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(pos => {
-            const coords = [pos.coords.latitude, pos.coords.longitude];
-            map.setView(coords, 13);
-            L.marker(coords, { icon: L.icon({ iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png', shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png', iconSize: [25, 41], iconAnchor: [12, 41] }), isCurrentUser: true }).addTo(map).bindPopup('<b>ตำแหน่งของคุณ</b>').openPopup();
+            const userLocation = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+            map.setCenter(userLocation);
+            map.setZoom(13);
+            
+            new AdvancedMarkerElement({
+                position: userLocation,
+                map: map,
+                title: 'ตำแหน่งของคุณ',
+                content: createPinSvg(types['ตำแหน่งของคุณ']),
+            });
         });
     }
-    if (allData.length > 0) plotDataOnMap();
-    setTimeout(function() {
-        if (map) {
-            map.invalidateSize();
-        }
-    }, 10); 
+
+    if (allData.length > 0) {
+        plotDataOnMap(AdvancedMarkerElement, createPinSvg);
+    }
 }
 
-function plotDataOnMap() {
-    if (!map) return;
-    map.eachLayer(layer => {
-        if (layer instanceof L.Marker && !layer.options.isCurrentUser) {
-            map.removeLayer(layer);
-        }
-    });
+function plotDataOnMap(AdvancedMarkerElement, createPinSvg) {
+    if (!map) {
+        console.log("plotDataOnMap called, but map object is missing.");
+        return;
+    }
+    console.log("plotDataOnMap called. Clearing existing markers.");
 
-    allData.forEach(item => {
+    markers.forEach(marker => marker.setMap(null));
+    markers = [];
+
+    const infoWindow = new google.maps.InfoWindow();
+    
+    const iconColors = { 'ร้านค้า': '#3b82f6', 'เกษตรกร': '#22c55e', 'แปลงทดลอง': '#a855f7' };
+
+    allData.forEach((item, index) => {
         const gps = item['GPS'] || item['GPSแปลง'];
         if (gps && String(gps).includes(',')) {
             const [lat, lon] = String(gps).split(',').map(s => parseFloat(s.trim()));
@@ -658,29 +820,30 @@ function plotDataOnMap() {
                         popupContent += `<br><small>สังกัด: ${item['ร้านค้าในสังกัด']}</small>`;
                     }
                 } else if (item.formType === 'แปลงทดลอง') {
-                    // --- ส่วนที่แก้ไข ---
-                    // ดึงชื่อจาก "พืชที่ทดลอง" ก่อน, ถ้าไม่มีให้ไปดึงจาก "ชื่อเจ้าของสวน"
                     const mainName = item['พืชที่ทดลอง'] || item['ชื่อเจ้าของสวน'] || 'N/A';
                     popupContent = `<b>${mainName}</b>`;
-                    // --- จบส่วนที่แก้ไข ---
-                    
                     if (item['เกษตรกรเจ้าของแปลง']) {
                         popupContent += `<br><small>ของ: ${item['เกษตรกรเจ้าของแปลง']}</small>`;
                     }
                 }
                 popupContent += `<br><a href="https://www.google.com/maps/dir/?api=1&destination=${lat},${lon}" target="_blank" class="text-blue-600 font-bold">นำทาง</a>`;
-                const iconColor = { 'ร้านค้า': 'blue', 'เกษตรกร': 'green', 'แปลงทดลอง': 'violet' }[item.formType] || 'grey';
-                const markerIcon = new L.Icon({
-                    iconUrl: `https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-${iconColor}.png`,
-                    shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
-                    iconSize: [25, 41],
-                    iconAnchor: [12, 41],
-                    popupAnchor: [1, -34]
+
+                const color = iconColors[item.formType] || '#7f7f7f';
+                
+                const marker = new AdvancedMarkerElement({
+                    position: { lat, lng: lon },
+                    map: map,
+                    content: createPinSvg(color),
+                    title: String(item['ชื่อร้านค้า'] || item['ชื่อเกษตรกร'] || item['พืชที่ทดลอง'] || 'N/A')
                 });
 
-                L.marker([lat, lon], { icon: markerIcon })
-                    .addTo(map)
-                    .bindPopup(popupContent);
+                marker.addListener('click', () => {
+                    infoWindow.close();
+                    infoWindow.setContent(popupContent);
+                    infoWindow.open(map, marker);
+                });
+
+                markers.push(marker);
             }
         }
     });
