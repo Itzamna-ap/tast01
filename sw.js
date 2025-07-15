@@ -1,5 +1,5 @@
 // Define the cache name and files to cache
-const CACHE_NAME = 'af-v2-cache-v4'; // Changed cache name to ensure update
+const CACHE_NAME = 'af-v2-cache-v3'; // Changed cache name to ensure update
 const urlsToCache = [
   './',             // Path to the root of the current folder (index.html)
   './index.html',
